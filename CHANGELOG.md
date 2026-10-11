@@ -1,3 +1,12 @@
+# [2.34.0](https://github.com/themadorg/madmail/compare/v2.33.0...v2.34.0) (2026-10-11)
+
+
+### Features
+
+* **landing:** add a static blog ([7c6749e](https://github.com/themadorg/madmail/commit/7c6749e8d9a458165fb85efcf11d4bd51975b7f8))
+* **landing:** add blog social previews and sharing options ([3b7957a](https://github.com/themadorg/madmail/commit/3b7957a75cb65f580ebb526be6d956c43c299d2a))
+* **landing:** polish blog cards and add language navigation ([d7c3e2e](https://github.com/themadorg/madmail/commit/d7c3e2ed625fc153538f437e3f5f1051de839fd8))
+
 # [2.33.0](https://github.com/themadorg/madmail/compare/v2.32.1...v2.33.0) (2026-10-10)
 
 
