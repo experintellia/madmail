@@ -1,5 +1,5 @@
 <script>
-	import { onDestroy } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import copyIcon from '$lib/icons/document-duplicate.svg?raw';
 	import checkIcon from '$lib/icons/check.svg?raw';
 	import deltaIcon from '$lib/icons/deltachat.svg?raw';
@@ -10,6 +10,12 @@
 	let status = $state('');
 	let copied = $state(false);
 	let resetTimer;
+	let nativeShare = $state(false);
+	onMount(() => { nativeShare = typeof navigator.share === 'function'; });
+	async function shareMore() {
+		try { await navigator.share({ title, url }); }
+		catch (error) { if (error.name !== 'AbortError') status = 'Use one of the share links or copy the page link.'; }
+	}
 	onDestroy(() => clearTimeout(resetTimer));
 	async function copyLink() {
 		try {
@@ -33,8 +39,14 @@
 		<button class="copy-icon" class:copied aria-label={copied ? 'Link copied' : 'Copy link'} title={copied ? 'Link copied' : 'Copy link'} onclick={copyLink}>{#key copied}<span class="copy-symbol" aria-hidden="true">{@html copied ? checkIcon : copyIcon}</span>{/key}</button>
 	</div>
 	<div class="share-options">
+		<a href={`https://wa.me/?text=${encodeURIComponent(`${title}\n${url}`)}`} target="_blank" rel="noopener noreferrer">WhatsApp</a>
+		<a href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`} target="_blank" rel="noopener noreferrer">Facebook</a>
+		<a href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(title)}`} target="_blank" rel="noopener noreferrer">X / Twitter</a>
 		<a href={`mailto:?body=${encodeURIComponent(`${title}\n${url}`)}`}><span class="service-icon" aria-hidden="true">{@html deltaIcon}</span>Delta Chat</a>
 		<a href={`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(title)}`} target="_blank" rel="noopener noreferrer"><span class="service-icon" aria-hidden="true">{@html telegramIcon}</span>Telegram</a>
+		<a href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`} target="_blank" rel="noopener noreferrer">LinkedIn</a>
+		<a href={`https://www.reddit.com/submit?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}`} target="_blank" rel="noopener noreferrer">Reddit</a>
+		{#if nativeShare}<button onclick={shareMore}>More apps…</button>{/if}
 	</div>
 	{#if status}<p role="status">{status}</p>{/if}
 </Modal>

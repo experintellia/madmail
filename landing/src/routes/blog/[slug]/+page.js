@@ -9,5 +9,5 @@ export function entries() {
 export function load({ params }) {
 	const post = postBySlug(params.slug);
 	if (!post) error(404, 'Post not found');
-	return { post };
+	return { post, title: post.title, description: post.description, article: true, language: post.language, published: post.date, author: post.author };
 }
