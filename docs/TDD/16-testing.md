@@ -17,7 +17,7 @@ Chatmail's correctness is defined by **real Delta Chat client behavior**, not ju
 
 ## Docker tests
 
-`make test-docker` runs the full default Rust workspace suite and landing-site tests inside Docker, then builds the shipping image and installs an isolated self-signed relay. Docker clients check metrics disabled by default, enable/disable across restarts, custom listen IP/port, HTTP Basic authentication success and rejection, saved CLI credentials, password removal, HTTPS and dashboard serving, admin authentication, SMTP TLS/STARTTLS delivery, IMAP retrieval and login rejection, plaintext rejection, restart persistence, and live IMAP TURN metadata plus UDP allocation. The runner removes its containers and volumes and retains logs under `target/docker-tests/`. See [Docker test instructions](../guide/docker.md#automated-local-docker-tests) for prerequisites, ignored/external tests, and port overrides. The PGP/MIME fixture and TURN allocation checks do not replace real Delta Chat client or media round-trip tests.
+`make test-docker` runs the full default Rust workspace suite and landing-site tests inside Docker, then builds the shipping image and installs an isolated self-signed relay. Docker clients check browser-selected DNS/IP account domains, foreign-host fallback, multi-domain JIT login and wrong-password rejection, metrics disabled by default, enable/disable across restarts, custom listen IP/port, HTTP Basic authentication success and rejection, saved CLI credentials, password removal, HTTPS and dashboard serving, admin authentication, SMTP TLS/STARTTLS delivery, IMAP retrieval and login rejection, plaintext rejection, restart persistence, and live IMAP TURN metadata plus UDP allocation. The runner removes its containers and volumes and retains logs under `target/docker-tests/`. See [Docker test instructions](../guide/docker.md#automated-local-docker-tests) for prerequisites, ignored/external tests, and port overrides. The PGP/MIME fixture and TURN allocation checks do not replace real Delta Chat client or media round-trip tests.
 
 `make test-deltachat-docker` runs the existing 11 cmlxc relay_minitest checks and extensive Delta Chat RPC scenarios against two Docker relays, including encrypted messaging, groups, cross-relay delivery, files, and large-file SHA-256 verification. `make test-full-docker` combines both Docker suites. See [extensive Docker tests](../guide/docker.md#extensive-delta-chat-and-cmlxc-tests-in-docker) for selection, artifacts, and the explicit signing-key/Go-camouflage/LXC-exchanger exclusions.
 
@@ -209,3 +209,23 @@ E2E and integration tests assert behaviour defined by these specs. Offline copie
 | Security (PGP) | [9580](RFC/rfc9580.txt), [3156](RFC/rfc3156.txt) | [9580](https://datatracker.ietf.org/doc/html/rfc9580), [3156](https://datatracker.ietf.org/doc/html/rfc3156) |
 | TURN / calls | [8656](RFC/rfc8656.txt), [8489](RFC/rfc8489.txt), [8445](RFC/rfc8445.txt) | [8656](https://datatracker.ietf.org/doc/html/rfc8656), [8489](https://datatracker.ietf.org/doc/html/rfc8489), [8445](https://datatracker.ietf.org/doc/html/rfc8445) |
 | Admin API | [9110](RFC/rfc9110.txt), [8259](RFC/rfc8259.txt) | [9110](https://datatracker.ietf.org/doc/html/rfc9110), [8259](https://datatracker.ietf.org/doc/html/rfc8259) |
+
+## Operator webhook coverage
+
+`cargo test -p chatmail-state webhooks` tests signatures, policy/gating, secret
+redaction, bounded delivery/dedup, timeouts/retries, redirect rejection and reload.
+`cargo test -p chatmail-integration --test operator_webhooks_e2e` triggers actual
+admin, web and JIT registrations and IMAP/SMTP quota rejections through a mock
+receiver, verifies concurrent admin imports emit one event, verifies authorization
+and checks that public pages expose no webhook
+settings. See [the design](25-operator-webhooks.md) for the complete contract.
+
+### JIT domain retirement and CLI provisioning
+
+`cli_creation_and_existing_logins_survive_jit_domain_restriction` exercises the
+real account-creation CLI with a multi-domain config, explicit DNS/IP addresses,
+and a bare username defaulting to the first primary domain. It then narrows JIT
+to one domain and verifies existing accounts continue authenticating through
+both database fallback and the hydrated cache, incorrect passwords stay
+rejected, and unknown accounts on retired domains are never created. Explicit
+admin provisioning remains independent of the first-login JIT allowlist.
