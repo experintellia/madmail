@@ -121,7 +121,9 @@ pub async fn dispatch(cli: &Cli) -> Result<()> {
             username,
             password,
         }) => match cmd {
-            Some(cmd) => monitor::configure(&cli.args, cmd),
+            Some(cmd) => {
+                monitor::configure(&cli.args, cmd, username.as_deref(), password.as_deref())
+            }
             None => {
                 monitor::monitor(
                     &cli.args,

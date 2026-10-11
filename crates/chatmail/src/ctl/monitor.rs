@@ -112,7 +112,12 @@ fn dialable(listen: &str) -> String {
 }
 
 /// Report or persist metrics configuration. Static listeners require a restart.
-pub fn configure(args: &Args, cmd: &chatmail_config::cli::MonitorCommand) -> Result<()> {
+pub fn configure(
+    args: &Args,
+    cmd: &chatmail_config::cli::MonitorCommand,
+    parent_username: Option<&str>,
+    parent_password: Option<&str>,
+) -> Result<()> {
     use chatmail_config::cli::MonitorCommand;
     let out = CtlOut::from_args(args, "monitor");
     let changed = match cmd {
@@ -129,8 +134,12 @@ pub fn configure(args: &Args, cmd: &chatmail_config::cli::MonitorCommand) -> Res
             &chatmail_config::config_monitor::MonitorOptions {
                 ip: *ip,
                 port: *port,
-                username: username.as_deref(),
-                password: password.as_deref(),
+                username: username.as_deref().or(parent_username),
+                password: if *clear_password {
+                    None
+                } else {
+                    password.as_deref().or(parent_password)
+                },
                 clear_password: *clear_password,
             },
         )?,

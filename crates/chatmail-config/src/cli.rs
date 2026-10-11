@@ -535,12 +535,7 @@ pub enum MonitorCommand {
         #[arg(long)]
         username: Option<String>,
         /// Protect /metrics with this HTTP Basic password.
-        #[arg(
-            long,
-            env = "MADMAIL_MONITOR_PASSWORD",
-            hide_env_values = true,
-            conflicts_with = "clear_password"
-        )]
+        #[arg(long, conflicts_with = "clear_password")]
         password: Option<String>,
         /// Remove HTTP password protection.
         #[arg(long)]

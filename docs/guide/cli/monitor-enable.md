@@ -22,6 +22,10 @@ Both `.conf` and `.toml` configurations are supported. See [global flags](global
 | `--password <PASSWORD>` | Set HTTP Basic password protection; also accepts `MADMAIL_MONITOR_PASSWORD`. |
 | `--clear-password` | Remove password protection; conflicts with `--password`. |
 
+Credentials supplied before `enable` are also applied. Flags after `enable` take precedence over parent flags and `MADMAIL_MONITOR_PASSWORD`. `--clear-password` overrides the parent or environment password; it conflicts only with an explicit password after `enable`.
+
+In Maddy-format configs, credentials cannot end in a backslash, contain a backslash immediately before a quote, contain `{env:...}` or `$(...)` expansion syntax, or consist of a single `{` or `}`. These values are rejected before writing the file. Use a TOML config to store them literally.
+
 Settings not supplied remain unchanged. See [authentication and address examples](monitor.md#listen-address-and-http-password).
 
 ## Examples

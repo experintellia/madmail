@@ -41,6 +41,27 @@ pub fn update_config_monitor_options(
     enabled: bool,
     options: &MonitorOptions<'_>,
 ) -> Result<bool> {
+    let is_toml = path.extension().and_then(|e| e.to_str()) == Some("toml");
+    if enabled && !is_toml {
+        for value in [
+            options.username,
+            if options.clear_password {
+                None
+            } else {
+                options.password
+            },
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if value.ends_with('\\') || value.contains("\\\"") {
+                return Err(ChatmailError::config("metrics credentials cannot end in a backslash or contain a backslash before a quote in a Maddy config; use a TOML config"));
+            }
+            if value == "{" || value == "}" || value.contains("{env:") || value.contains("$(") {
+                return Err(ChatmailError::config("metrics credentials cannot contain config expansions ({env:...} or $(...)) or be a single brace in a Maddy config; use a TOML config"));
+            }
+        }
+    }
     let config = crate::load_config(path)?;
     if options.port == Some(0) {
         return Err(ChatmailError::config(
@@ -103,7 +124,6 @@ pub fn update_config_monitor_options(
         return Ok(false);
     }
     let raw = std::fs::read_to_string(path)?;
-    let is_toml = path.extension().and_then(|e| e.to_str()) == Some("toml");
     let updated = if is_toml {
         let mut doc: toml::Table = toml::from_str(&raw)
             .map_err(|e| ChatmailError::config(format!("invalid TOML: {e}")))?;
@@ -192,6 +212,53 @@ fn disable_maddy(raw: &str) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rejects_unrepresentable_credentials_without_changing_maddy_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("madmail.conf");
+        let original = "hostname mail.example.org\n";
+        std::fs::write(&path, original).unwrap();
+        for password in [
+            "trailing\\",
+            "trailing\\\\",
+            "slash\\\"quote",
+            "{env:HOME}",
+            "$(hostname)",
+            "{",
+            "}",
+        ] {
+            let error = update_config_monitor_options(
+                &path,
+                true,
+                &MonitorOptions {
+                    password: Some(password),
+                    ..Default::default()
+                },
+            )
+            .unwrap_err();
+            assert!(error.to_string().contains("metrics credentials"));
+            assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+        }
+        let toml = dir.path().join("chatmail.toml");
+        std::fs::write(&toml, "hostname = \"mail.example.org\"\n").unwrap();
+        update_config_monitor_options(
+            &toml,
+            true,
+            &MonitorOptions {
+                password: Some("{env:HOME}"),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            crate::load_config(&toml)
+                .unwrap()
+                .openmetrics_password
+                .as_deref(),
+            Some("{env:HOME}")
+        );
+    }
 
     #[test]
     fn toggles_both_config_formats_and_is_idempotent() {
