@@ -17,7 +17,7 @@
 
 	$effect(() => {
 		if (!browser) return;
-		document.documentElement.classList.toggle('docs-theme', page.url.pathname === '/docs' || page.url.pathname.startsWith('/docs/') || page.url.pathname === '/releases' || page.url.pathname.startsWith('/releases/'));
+		document.documentElement.classList.toggle('docs-theme', page.url.pathname === '/docs' || page.url.pathname.startsWith('/docs/') || page.url.pathname === '/releases' || page.url.pathname.startsWith('/releases/') || page.url.pathname === '/blog' || page.url.pathname.startsWith('/blog/'));
 	});
 
 	if (browser) {

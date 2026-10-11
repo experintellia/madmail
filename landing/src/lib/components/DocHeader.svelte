@@ -27,7 +27,7 @@
 	<div class="brand">
 		<div class="brand-start">
 			<MadmailLogo href="/" size="1.5rem" class="doc-logo" transitionName="madmail-logo" />
-			<a class="docs-label" href={section === 'Docs' ? '/docs' : '/releases'}>Madmail / {section}</a>
+			<a class="docs-label" href={section === 'Blog' ? '/blog' : section === 'Releases' ? '/releases' : '/docs'}>Madmail / {section}</a>
 			{#if section === 'Docs' && !(docTreeModal.open && docTreeModal.docked)}
 			<button
 				type="button"
