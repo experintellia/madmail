@@ -45,6 +45,9 @@ export function parseBlogSource(filename, source) {
 		slug,
 		title: meta.title,
 		date: meta.date,
+		author: meta.author ?? '',
+		language: meta.language ?? 'en',
+		translation: meta.translation ?? slug,
 		description: meta.description ?? '',
 		body: match[2].trim()
 	};
