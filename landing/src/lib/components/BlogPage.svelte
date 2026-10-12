@@ -26,7 +26,7 @@
 	<link rel="alternate" type="application/rss+xml" title="Madmail blog" href="/blog/rss.xml" />
 </svelte:head>
 
-<DocHeader section="Blog" {languages} article={selected} />
+<DocHeader section="Blog" {languages} article={selected} blogLanguage={selected?.language ?? indexLanguage} />
 
 <div class="blog-page">
 	<header class="page-cover">
@@ -43,8 +43,8 @@
 					<a href="/blog/{selected.slug}/source.md">Source</a>
 				</p>
 			{:else}
-				<h1>{indexLanguage === 'fa' ? 'وبلاگ' : 'Blog'}</h1>
-				<p>{indexLanguage === 'fa' ? 'یادداشت‌های پروژهٔ مدمیل.' : 'Notes from the Madmail project.'} <a href="/blog/rss.xml">RSS</a></p>
+				<h1>{indexLanguage === 'fa' ? 'وبلاگ' : indexLanguage === 'ru' ? 'Блог' : 'Blog'}</h1>
+				<p>{indexLanguage === 'fa' ? 'یادداشت‌های پروژهٔ مدمیل.' : indexLanguage === 'ru' ? 'Заметки о проекте Madmail.' : 'Notes from the Madmail project.'} <a href="/blog/rss.xml">RSS</a></p>
 			{/if}
 		</div>
 	</header>

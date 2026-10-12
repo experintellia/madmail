@@ -10,8 +10,9 @@ test('each article produces a self-contained webxdc with its title, language and
 	for (const filename of readdirSync(folder).filter((name) => name.endsWith('.md'))) {
 		const post = parseBlogSource(filename, readFileSync(new URL(filename, folder), 'utf8'));
 		const files = unzipSync(createArticleWebxdc(post, `https://madmail.example/blog/${post.slug}`));
-		assert.deepEqual(Object.keys(files).sort(), ['index.html', 'manifest.toml']);
+		assert.deepEqual(Object.keys(files).sort(), ['icon.png', 'index.html', 'manifest.toml']);
 		assert.equal(strFromU8(files['manifest.toml']), `name = ${JSON.stringify(post.title)}\n`);
+		assert.deepEqual(files['icon.png'], new Uint8Array(readFileSync(new URL('../../static/favicon.png', import.meta.url))));
 		const html = strFromU8(files['index.html']);
 		assert.ok(html.includes(`lang="${post.language}"`));
 		assert.ok(html.includes(`dir="${post.language === 'fa' ? 'rtl' : 'ltr'}"`));

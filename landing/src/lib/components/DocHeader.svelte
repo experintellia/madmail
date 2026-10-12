@@ -15,8 +15,10 @@
 	import newspaper from '$lib/icons/newspaper.svg?raw';
 	import { repo } from '$lib/nav.js';
 
-	/** @type {{ article?: ReturnType<typeof import("$lib/blogSource.js").parseBlogSource> | null, currentHref?: string, section?: string, languages?: { label: string, href: string, current: boolean }[] }} */
-	let { currentHref = '', section = 'Docs', languages = [], article = null } = $props();
+	/** @type {{ article?: ReturnType<typeof import("$lib/blogSource.js").parseBlogSource> | null, currentHref?: string, section?: string, blogLanguage?: string, languages?: { label: string, href: string, current: boolean }[] }} */
+	let { currentHref = '', section = 'Docs', languages = [], article = null, blogLanguage = 'en' } = $props();
+
+	const blogHref = $derived(blogLanguage === 'en' ? '/blog' : `/blog?lang=${encodeURIComponent(blogLanguage)}`);
 
 	let shareOpen = $state(false);
 	let shareUrl = $state('');
@@ -36,12 +38,12 @@
 			<div class="docs-label">
 				<a href="/">Madmail</a>
 				<span aria-hidden="true"> / </span>
-				<a href={section === 'Blog' ? '/blog' : section === 'Releases' ? '/releases' : '/docs'}>{section}</a>
+				<a href={section === 'Blog' ? blogHref : section === 'Releases' ? '/releases' : '/docs'}>{section}</a>
 			</div>
 			<HeaderDropdown id="section-navigation" label="Switch section" menuLabel="Site sections" icon={chevronDown} items={[
 				{ label: 'Docs', href: '/docs', current: section === 'Docs', icon: bookOpen },
 				{ label: 'Releases', href: '/releases', current: section === 'Releases', icon: tagIcon },
-				{ label: 'Blog', href: '/blog', current: section === 'Blog', icon: newspaper }
+				{ label: 'Blog', href: blogHref, current: section === 'Blog', icon: newspaper }
 			]} />
 			{#if section === 'Docs' && !(docTreeModal.open && docTreeModal.docked)}
 			<button

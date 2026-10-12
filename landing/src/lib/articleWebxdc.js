@@ -1,3 +1,4 @@
+import { madmailIconBase64 } from './assets/webxdcIcon.js';
 import { strToU8, zipSync } from 'fflate';
 import { renderReleaseMarkdown } from './releaseMarkdown.js';
 
@@ -33,6 +34,7 @@ img { max-width: 100%; } footer { margin-top: 2rem; font-size: .85rem; }
 <p class="meta">${escape(post.date)}${post.author ? ` · ${escape(post.author)}` : ''}</p>
 ${body}<footer><a href="${escape(url)}">Original article · Madmail</a></footer></article></body></html>`;
 	return zipSync({
+		'icon.png': Uint8Array.from(atob(madmailIconBase64), (character) => character.charCodeAt(0)),
 		'index.html': strToU8(html),
 		'manifest.toml': strToU8(`name = ${JSON.stringify(post.title)}\n`)
 	});
