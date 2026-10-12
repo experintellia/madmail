@@ -15,8 +15,8 @@
 	import newspaper from '$lib/icons/newspaper.svg?raw';
 	import { repo } from '$lib/nav.js';
 
-	/** @type {{ currentHref?: string, section?: string, languages?: { label: string, href: string, current: boolean }[] }} */
-	let { currentHref = '', section = 'Docs', languages = [] } = $props();
+	/** @type {{ article?: ReturnType<typeof import("$lib/blogSource.js").parseBlogSource> | null, currentHref?: string, section?: string, languages?: { label: string, href: string, current: boolean }[] }} */
+	let { currentHref = '', section = 'Docs', languages = [], article = null } = $props();
 
 	let shareOpen = $state(false);
 	let shareUrl = $state('');
@@ -61,7 +61,7 @@
 		</button>
 		<div class="brand-end">
 			{#if languages.length}
-				<HeaderDropdown id="post-languages" label="Change post language" menuLabel="Post languages" icon={languageIcon} align="right" items={languages.map((language) => ({ ...language, lang: language.label === 'فارسی' ? 'fa' : undefined }))} />
+				<HeaderDropdown id="post-languages" label="Change post language" menuLabel="Post languages" icon={languageIcon} align="right" items={languages.map((language) => ({ ...language, lang: language.label === 'فارسی' ? 'fa' : language.label === 'Русский' ? 'ru' : language.label === 'English' ? 'en' : undefined }))} />
 			{/if}
 			<button
 				type="button"
@@ -86,7 +86,7 @@
 		</div>
 	</div>
 </header>
-<SharePageModal bind:open={shareOpen} url={shareUrl} title={shareTitle} />
+<SharePageModal bind:open={shareOpen} url={shareUrl} title={shareTitle} {article} />
 
 <style>
 	.doc-header {

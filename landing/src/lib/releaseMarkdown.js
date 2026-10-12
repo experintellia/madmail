@@ -1,4 +1,4 @@
-import { Marked } from 'marked';
+import { Marked, Renderer } from 'marked';
 
 function escape(value) {
 	return value.replace(/[&<>"']/g, (character) => ({
@@ -19,9 +19,13 @@ function safeUrl(href, baseUrl, internalLinks) {
 	}
 }
 
-function createMarkdown(baseUrl, internalLinks) {
+function createMarkdown(baseUrl, internalLinks, wrapTables) {
 return new Marked({
 	renderer: {
+		table(token) {
+			const table = Renderer.prototype.table.call(this, token);
+			return wrapTables ? `<div class="table-scroll" tabindex="0" role="region" aria-label="Table">${table}</div>` : table;
+		},
 		html({ text }) { return escape(text); },
 		link({ href, tokens }) {
 			const text = this.parser.parseInline(tokens);
@@ -41,8 +45,8 @@ return new Marked({
 });
 }
 
-export function renderReleaseMarkdown(body, { baseUrl = 'https://github.com/themadorg/madmail/', internalLinks = false } = {}) {
-	const markdown = createMarkdown(baseUrl, internalLinks);
+export function renderReleaseMarkdown(body, { baseUrl = 'https://github.com/themadorg/madmail/', internalLinks = false, wrapTables = false } = {}) {
+	const markdown = createMarkdown(baseUrl, internalLinks, wrapTables);
 	const tokens = markdown.lexer(body);
 	function linkReferences(value) {
 		if (Array.isArray(value)) {

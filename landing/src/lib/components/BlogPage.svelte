@@ -8,13 +8,13 @@
 
 	/** @type {{ posts: { slug: string, title: string, date: string, author?: string, language?: string, translation?: string, description: string, body: string }[], selected?: { slug: string, title: string, date: string, author?: string, language?: string, translation?: string, description: string, body: string } | null }} */
 	let { posts, selected = null } = $props();
-	const indexLanguage = $derived(page.url.searchParams.get('lang') === 'fa' ? 'fa' : 'en');
+	const indexLanguage = $derived(['en', 'fa', 'ru'].includes(page.url.searchParams.get('lang')) ? page.url.searchParams.get('lang') : 'en');
 	const groups = $derived([...new Set(posts.map((post) => post.translation))].map((key) => {
 		const variants = posts.filter((post) => post.translation === key);
 		return variants.find((post) => post.language === indexLanguage) ?? variants.find((post) => post.language === 'en') ?? variants[0];
 	}));
 	const visible = $derived(selected ? [selected] : groups);
-	const languages = $derived(selected ? allPosts.filter((post) => post.translation === selected.translation).map((post) => ({ label: post.language === 'fa' ? 'فارسی' : post.language === 'en' ? 'English' : post.language, href: `/blog/${post.slug}`, current: post.slug === selected.slug })) : [...new Set(allPosts.map((post) => post.language))].map((language) => ({ label: language === 'fa' ? 'فارسی' : language === 'en' ? 'English' : language, href: `/blog?lang=${language}`, current: language === indexLanguage })));
+	const languages = $derived(selected ? allPosts.filter((post) => post.translation === selected.translation).map((post) => ({ label: post.language === 'fa' ? 'فارسی' : post.language === 'en' ? 'English' : post.language === 'ru' ? 'Русский' : post.language, href: `/blog/${post.slug}`, current: post.slug === selected.slug })) : [...new Set(allPosts.map((post) => post.language))].map((language) => ({ label: language === 'fa' ? 'فارسی' : language === 'en' ? 'English' : language === 'ru' ? 'Русский' : language, href: `/blog?lang=${language}`, current: language === indexLanguage })));
 </script>
 
 <svelte:head>
@@ -26,7 +26,7 @@
 	<link rel="alternate" type="application/rss+xml" title="Madmail blog" href="/blog/rss.xml" />
 </svelte:head>
 
-<DocHeader section="Blog" {languages} />
+<DocHeader section="Blog" {languages} article={selected} />
 
 <div class="blog-page">
 	<header class="page-cover">
@@ -68,7 +68,7 @@
 					</div>
 				{:else}
 					<article>
-						<div class="notes" lang={post.language} dir={post.language === 'fa' ? 'rtl' : undefined}>{@html renderReleaseMarkdown(post.body, { baseUrl: `${siteOrigin}/blog/${post.slug}`, internalLinks: true })}</div>
+						<div class="notes" lang={post.language} dir={post.language === 'fa' ? 'rtl' : undefined}>{@html renderReleaseMarkdown(post.body, { baseUrl: `${siteOrigin}/blog/${post.slug}`, internalLinks: true, wrapTables: true })}</div>
 					</article>
 				{/if}
 			{/each}
@@ -197,6 +197,37 @@
 	.notes :global(ul),
 	.notes :global(ol) {
 		margin: 1rem 0;
+	}
+	.notes :global(.table-scroll) {
+		margin: 1.5rem 0;
+		overflow-x: auto;
+		border: 1px solid var(--color-border);
+		border-radius: 0.65rem;
+		background: var(--color-surface);
+	}
+	.notes :global(.table-scroll:focus-visible) {
+		outline: 2px solid var(--color-text-muted);
+		outline-offset: 3px;
+	}
+	.notes :global(table) {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: 0.95em;
+		line-height: 1.5;
+	}
+	.notes :global(th),
+	.notes :global(td) {
+		padding: 0.85rem 1rem;
+		text-align: start;
+		vertical-align: top;
+		min-width: 9rem;
+	}
+	.notes :global(th) {
+		background: var(--color-surface-raised);
+		font-weight: 600;
+	}
+	.notes :global(tbody tr) {
+		border-top: 1px solid var(--color-border);
 	}
 	.notes :global(pre) {
 		overflow-x: auto;
