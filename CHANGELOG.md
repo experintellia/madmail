@@ -1,3 +1,15 @@
+# [2.35.0](https://github.com/themadorg/madmail/compare/v2.34.0...v2.35.0) (2026-10-12)
+
+
+### Bug Fixes
+
+* **monitor:** preserve credentials and validate config literals ([cb557de](https://github.com/themadorg/madmail/commit/cb557de85761c86a2eff64b65395c70835bbd0b3))
+
+
+### Features
+
+* **monitor:** make metrics opt-in with authentication and listener controls ([6218769](https://github.com/themadorg/madmail/commit/6218769aacaf6e4d7097551ac91538889d1123c8))
+
 # [2.34.0](https://github.com/themadorg/madmail/compare/v2.33.0...v2.34.0) (2026-10-11)
 
 
