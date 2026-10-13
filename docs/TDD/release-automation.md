@@ -77,20 +77,24 @@ The workflow does not read private provenance files. Those can be checked later,
 
 `windows.yml` builds `madmail-windows-amd64-setup.exe` only for a published stable release `vX.Y.Z`. Unstable prereleases do not run that job.
 
-The job resolves the Git tag, including annotated tags, and downloads the `madmail-windows-amd64.exe` asset already on that release. It checks:
+Packaging tools come from the repository default branch: `scripts/windows_release.py`, `scripts/verify_signed_binary.py`, `packaging/windows/Madmail.iss`, and `packaging/windows/build-setup.ps1`. The selected release is a separate checkout. The job fetches the `vX.Y.Z` tag there, including annotated tags, and reads `.version` and `[workspace.package]` from that commit. An older release does not need to contain the packaging scripts. The job does not run helper scripts from the release commit, and it does not build either binary from the default branch.
+
+It downloads `madmail-windows-amd64.exe` from that GitHub Release and checks:
 
 - the Ed25519 trailer (last 64 bytes) against the public key in `crates/chatmail/src/upgrade.rs`
 - `madmail version` against the tag
 - `.version` and `[workspace.package]` at the tagged commit
 - a full commit SHA in the release's `targetCommitish` when that field is a SHA
 
-A branch or tag name in `targetCommitish` is accepted. The verified bytes are the file Inno Setup packages. The installer version is that same `X.Y.Z`.
+A branch or tag name in `targetCommitish` is accepted. Those verified bytes are the server file Inno Setup packages. The installer version is that same `X.Y.Z`.
 
-Optional checks, used only when the release already has them: a GitHub asset `digest` of `sha256:…`, a `SHA256SUMS` line for `madmail-windows-amd64.exe` (hash of the published bytes, trailer included), and `SOURCE.txt` containing the tag commit. A missing optional file is ignored. A present file that does not match fails the job. No private provenance file is required.
+It also downloads `madmail-tray-windows-amd64.exe` from the same release and stages it at the path `Madmail.iss` already expects. The stable compile passes `/DRequireTray=1`, so a missing tray file fails Inno Setup instead of producing an installer without tray shortcuts or autostart. The tray is not checked with the server Ed25519 trailer. The tray program has no public version command that this job can run.
 
-The job uploads `madmail-windows-amd64-setup.exe` only. An identical installer is reused. A different published installer fails the job. The portable executable is not uploaded or replaced.
+When the tray asset has a `sha256` digest, or `SHA256SUMS` lists it, those values must match the downloaded bytes. A checksum shows that the bytes match what the release published. It does not prove which commit built the tray. `SOURCE.txt`, when the release has one, must still be the tag commit; that is the release's claimed source, not a separate attestation inside the tray file. If neither a digest nor a `SHA256SUMS` entry is present, the job logs that and stages the release asset anyway. A missing tray asset fails the job.
 
-The private publisher still has to attach the signed `madmail-windows-amd64.exe` to the stable release before this job can succeed. This repository does not define a new publishing protocol for that step. A signed tray asset is not required; the generated installer omits the tray when `build/madmail-tray-windows-amd64.exe` is absent. Smoke tests and local `build-setup.ps1` runs continue to build unsigned development binaries and do not upload them to a release.
+The job uploads `madmail-windows-amd64-setup.exe` only. An identical installer is reused. A different published installer fails the job. The portable server executable and the tray executable are not uploaded or replaced. The smoke-test artifact is not reused.
+
+The private publisher has to attach both `madmail-windows-amd64.exe` (Ed25519 trailer) and `madmail-tray-windows-amd64.exe` (built for that same release) before this job can succeed. If it publishes `SHA256SUMS`, that file must list the tray as well as the server. This repository does not define a new publishing protocol for that step. Local `build-setup.ps1` runs still treat the tray as optional unless `-RequireTray` is passed, and they do not upload anything to a release.
 
 ## What CI will not do
 
