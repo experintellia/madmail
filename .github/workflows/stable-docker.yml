@@ -1,0 +1,156 @@
+# Build the stable GHCR image only after a stable GitHub Release is published.
+# Unstable prereleases do not update X.Y.Z or latest. No production signing
+# keys are available to this workflow.
+
+name: Stable Docker
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published stable tag vX.Y.Z
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  docker:
+    name: Publish stable Docker image
+    if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false
+    runs-on: ubuntu-latest
+    concurrency:
+      group: docker-stable
+      cancel-in-progress: false
+    steps:
+      - name: Resolve published stable source
+        id: source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re, subprocess
+          tag = os.environ["TAG"]
+          if not re.fullmatch(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", tag):
+              raise SystemExit("expected a stable vX.Y.Z tag")
+          data = json.loads(subprocess.check_output([
+              "gh", "release", "view", tag,
+              "--repo", os.environ["GITHUB_REPOSITORY"],
+              "--json", "isDraft,isPrerelease,targetCommitish,tagName",
+          ], text=True))
+          sha = data["targetCommitish"]
+          if data["isDraft"] or data["isPrerelease"] or not re.fullmatch(r"[0-9a-f]{40}", sha):
+              raise SystemExit("stable release must be published and pinned to a full commit SHA")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"sha={sha}\nversion={tag[1:]}\ntag={tag}\n")
+          PY
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+          path: source
+          fetch-depth: 0
+          submodules: recursive
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: tools
+          sparse-checkout: |
+            scripts/registry_image.py
+            scripts/release.py
+          sparse-checkout-cone-mode: false
+
+      - name: Verify the stable tag matches the selected source
+        working-directory: source
+        env:
+          TAG: ${{ steps.source.outputs.tag }}
+          SHA: ${{ steps.source.outputs.sha }}
+          VERSION: ${{ steps.source.outputs.version }}
+        run: |
+          git fetch origin --tags
+          test "$(git rev-parse HEAD)" = "$SHA"
+          test "$(git rev-parse "${TAG}^{commit}")" = "$SHA"
+          test "$(git rev-parse "v${VERSION}-unstable^{commit}")" = "$SHA"
+          python3 - <<'PY'
+          import os, pathlib, tomllib
+          version = os.environ["VERSION"]
+          cargo = tomllib.loads(pathlib.Path("Cargo.toml").read_text())
+          if cargo["workspace"]["package"]["version"] != version:
+              raise SystemExit("Cargo.toml version does not match the stable tag")
+          if pathlib.Path(".version").read_text().strip() != version:
+              raise SystemExit(".version does not match the stable tag")
+          PY
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check immutable stable image
+        id: image
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.source.outputs.version }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: python3 tools/scripts/registry_image.py --repository "$GITHUB_REPOSITORY" --tag "$VERSION" --sha "$SOURCE_SHA"
+
+      - name: Build immutable stable image
+        if: steps.image.outputs.exists != 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: source
+          push: true
+          tags: ghcr.io/${{ github.repository }}:${{ steps.source.outputs.version }}
+          labels: |
+            org.opencontainers.image.revision=${{ steps.source.outputs.sha }}
+            org.opencontainers.image.version=${{ steps.source.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Advance latest only when this is the highest stable version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE: ghcr.io/${{ github.repository }}
+          VERSION: ${{ steps.source.outputs.version }}
+          PYTHONPATH: ${{ github.workspace }}/tools/scripts
+        run: |
+          python3 - <<'PY'
+          import os, subprocess, sys
+          sys.path.insert(0, os.environ["PYTHONPATH"])
+          import release
+          raw = subprocess.check_output([
+              "gh", "api", "--paginate",
+              f"repos/{os.environ['GITHUB_REPOSITORY']}/releases?per_page=100",
+              "--jq",
+              ".[] | select(.draft==false and .prerelease==false) | .tag_name",
+          ], text=True)
+          versions = []
+          for tag in raw.splitlines():
+              body = tag[1:] if tag.startswith("v") else tag
+              try:
+                  release.version_tuple(body)
+              except release.ReleaseError:
+                  continue
+              versions.append(body)
+          if os.environ["VERSION"] not in versions:
+              raise SystemExit("published release list does not include this version")
+          if release.highest_version(versions) != os.environ["VERSION"]:
+              print("Not the highest stable version; leaving latest unchanged.")
+              sys.exit(0)
+          subprocess.check_call([
+              "docker", "buildx", "imagetools", "create",
+              "--tag", os.environ["IMAGE"] + ":latest",
+              os.environ["IMAGE"] + ":" + os.environ["VERSION"],
+          ])
+          PY
