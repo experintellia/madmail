@@ -184,7 +184,7 @@ GitHub Actions workflow [`.github/workflows/windows.yml`](../../.github/workflow
 |---------|------|
 | **Push to `main`** (merge) | Linux Windows-crate tests, amd64 smoke, arm64 compile |
 | **PR to `main`** (Windows-related paths) | Same as main push |
-| **Stable GitHub Release** published | amd64 smoke, then Inno setup. Packaging scripts come from the default branch. The signed server and the tray are the assets already on that release. The job uploads only `madmail-windows-amd64-setup.exe`. Unstable prereleases skip this job. |
+| **Stable GitHub Release** published | Inno setup only. Smoke tests do not run and do not gate it. Packaging scripts come from the default branch. The signed server and the tray are the assets already on that release. The job uploads only `madmail-windows-amd64-setup.exe`. Unstable prereleases skip this job. |
 | **`workflow_dispatch`** | Same as main push (validate only; no Release upload) |
 
 | Job | Purpose |

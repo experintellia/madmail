@@ -62,10 +62,10 @@ jobs:
           test -f packaging/windows/README.md
           test -f scripts/build-windows.sh
 
-  # ── amd64 smoke (main, PRs, release, manual) ───────────────────────────────
+  # ── amd64 smoke (main, PRs, manual) — not on Release ──────────────────────
   windows-amd64-smoke:
     name: Windows amd64 smoke
-    if: github.event_name != 'release' || github.event.release.prerelease == false
+    if: github.event_name != 'release'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -162,7 +162,6 @@ jobs:
     name: Windows amd64 Inno setup
     if: github.event_name == 'release' && github.event.release.prerelease == false
     runs-on: windows-latest
-    needs: windows-amd64-smoke
     permissions:
       contents: write
     steps:

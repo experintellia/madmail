@@ -674,7 +674,13 @@ class WindowsReleaseTests(unittest.TestCase):
         self.assertNotIn("path: source", yaml.dump(smoke))
         self.assertNotIn("--clobber", WORKFLOW.read_text(encoding="utf-8"))
         self.assertNotIn("--clobber", (REPO / "scripts/windows_release.py").read_text(encoding="utf-8"))
-        self.assertIn("github.event_name != 'release'", smoke["if"])
+        self.assertEqual(smoke["if"], "github.event_name != 'release'")
+        self.assertNotIn("needs", setup)
+        self.assertNotIn("windows-amd64-smoke", rendered)
+        linux = document["jobs"]["linux-windows-crates"]
+        arm64 = document["jobs"]["windows-arm64-compile"]
+        self.assertEqual(linux["if"], "github.event_name != 'release'")
+        self.assertEqual(arm64["if"], "github.event_name != 'release'")
         self.assertIn("cargo build", yaml.dump(smoke))
         iss = (REPO / "packaging/windows/Madmail.iss").read_text(encoding="utf-8")
         script = (REPO / "packaging/windows/build-setup.ps1").read_text(encoding="utf-8")

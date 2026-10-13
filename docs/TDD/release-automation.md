@@ -75,7 +75,7 @@ The workflow does not read private provenance files. Those can be checked later,
 
 ## Windows installers
 
-`windows.yml` builds `madmail-windows-amd64-setup.exe` only for a published stable release `vX.Y.Z`. Unstable prereleases do not run that job.
+`windows.yml` builds `madmail-windows-amd64-setup.exe` only for a published stable release `vX.Y.Z`. Unstable prereleases do not run that job. Development smoke tests, the arm64 compile, and the Linux Windows-crate job do not run on a release event, and the installer job does not need them. An older release that no longer compiles on the current runner can still be packaged from its published binaries.
 
 Packaging tools come from the repository default branch: `scripts/windows_release.py`, `scripts/verify_signed_binary.py`, `packaging/windows/Madmail.iss`, and `packaging/windows/build-setup.ps1`. The selected release is a separate checkout. The job fetches the `vX.Y.Z` tag there, including annotated tags, and reads `.version` and `[workspace.package]` from that commit. An older release does not need to contain the packaging scripts. The job does not run helper scripts from the release commit, and it does not build either binary from the default branch.
 
