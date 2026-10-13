@@ -16,6 +16,8 @@ crates/chatmail-iroh/assets/iroh-relay
 !/scripts/windows_release.py
 !/scripts/test_windows_release.py
 !/scripts/test_release_workflows.py
+!/scripts/stable_source.py
+!/scripts/test_stable_source.py
 build
 node_modules
 

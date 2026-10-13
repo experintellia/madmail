@@ -27,35 +27,10 @@ jobs:
       group: docker-stable
       cancel-in-progress: false
     steps:
-      - name: Resolve published stable source
-        id: source
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
-        run: |
-          python3 - <<'PY'
-          import json, os, re, subprocess
-          tag = os.environ["TAG"]
-          if not re.fullmatch(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", tag):
-              raise SystemExit("expected a stable vX.Y.Z tag")
-          data = json.loads(subprocess.check_output([
-              "gh", "release", "view", tag,
-              "--repo", os.environ["GITHUB_REPOSITORY"],
-              "--json", "isDraft,isPrerelease,targetCommitish,tagName",
-          ], text=True))
-          sha = data["targetCommitish"]
-          if data["isDraft"] or data["isPrerelease"] or not re.fullmatch(r"[0-9a-f]{40}", sha):
-              raise SystemExit("stable release must be published and pinned to a full commit SHA")
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
-              handle.write(f"sha={sha}\nversion={tag[1:]}\ntag={tag}\n")
-          PY
-
       - uses: actions/checkout@v4
         with:
-          ref: ${{ steps.source.outputs.sha }}
-          path: source
           fetch-depth: 0
-          submodules: recursive
+          path: source
 
       - uses: actions/checkout@v4
         with:
@@ -64,28 +39,20 @@ jobs:
           sparse-checkout: |
             scripts/registry_image.py
             scripts/release.py
+            scripts/stable_source.py
           sparse-checkout-cone-mode: false
 
-      - name: Verify the stable tag matches the selected source
+      - name: Resolve the stable Git tag
+        id: source
         working-directory: source
         env:
-          TAG: ${{ steps.source.outputs.tag }}
-          SHA: ${{ steps.source.outputs.sha }}
-          VERSION: ${{ steps.source.outputs.version }}
-        run: |
-          git fetch origin --tags
-          test "$(git rev-parse HEAD)" = "$SHA"
-          test "$(git rev-parse "${TAG}^{commit}")" = "$SHA"
-          test "$(git rev-parse "v${VERSION}-unstable^{commit}")" = "$SHA"
-          python3 - <<'PY'
-          import os, pathlib, tomllib
-          version = os.environ["VERSION"]
-          cargo = tomllib.loads(pathlib.Path("Cargo.toml").read_text())
-          if cargo["workspace"]["package"]["version"] != version:
-              raise SystemExit("Cargo.toml version does not match the stable tag")
-          if pathlib.Path(".version").read_text().strip() != version:
-              raise SystemExit(".version does not match the stable tag")
-          PY
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+        run: python3 "${GITHUB_WORKSPACE}/tools/scripts/stable_source.py" --repo . --tag "$TAG" --checkout
+
+      - name: Check out submodules at the stable commit
+        working-directory: source
+        run: git submodule update --init --recursive
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -128,7 +95,7 @@ jobs:
           python3 - <<'PY'
           import os, subprocess, sys
           sys.path.insert(0, os.environ["PYTHONPATH"])
-          import release
+          import stable_source
           raw = subprocess.check_output([
               "gh", "api", "--paginate",
               f"repos/{os.environ['GITHUB_REPOSITORY']}/releases?per_page=100",
@@ -137,15 +104,15 @@ jobs:
           ], text=True)
           versions = []
           for tag in raw.splitlines():
-              body = tag[1:] if tag.startswith("v") else tag
-              try:
-                  release.version_tuple(body)
-              except release.ReleaseError:
-                  continue
-              versions.append(body)
-          if os.environ["VERSION"] not in versions:
-              raise SystemExit("published release list does not include this version")
-          if release.highest_version(versions) != os.environ["VERSION"]:
+              if stable_source.TAG.fullmatch(tag):
+                  versions.append(tag[1:])
+              elif stable_source.TAG.fullmatch("v" + tag):
+                  versions.append(tag)
+          try:
+              advance = stable_source.should_advance_latest(versions, os.environ["VERSION"])
+          except stable_source.StableSourceError as exc:
+              raise SystemExit(str(exc)) from exc
+          if not advance:
               print("Not the highest stable version; leaving latest unchanged.")
               sys.exit(0)
           subprocess.check_call([

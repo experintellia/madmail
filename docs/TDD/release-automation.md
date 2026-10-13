@@ -65,11 +65,9 @@ The moving `unstable` tag is chosen from `origin/main` after a fetch. A retry of
 
 Stable publication stays on the private publisher (`make publish` → local `scripts/publish.sh`, which is gitignored and is not replaced by this tree).
 
-When a **published, non-prerelease** GitHub Release `vX.Y.Z` appears, `.github/workflows/stable-docker.yml` builds `ghcr.io/themadorg/madmail:X.Y.Z` from that release's pinned commit. The workflow requires:
+When a **published, non-prerelease** GitHub Release `vX.Y.Z` appears, `.github/workflows/stable-docker.yml` builds `ghcr.io/themadorg/madmail:X.Y.Z` from the commit that Git tag resolves to. Annotated tags are peeled. The workflow checks out that commit, then checks that `.version` and `[workspace.package]` equal `X.Y.Z`.
 
-- the release target to be a full 40-character SHA
-- git tag `vX.Y.Z` and `vX.Y.Z-unstable` to point at that SHA
-- `Cargo.toml` and `.version` to equal `X.Y.Z`
+A full 40-character SHA in the release's `targetCommitish` must match the tag. A branch or tag name in that field is accepted. Historical stable tags do not need a `vX.Y.Z-unstable` tag. When that unstable tag exists, it must resolve to the same commit.
 
 The version image uses the same 404-or-matching-revision rule. `latest` moves only when this version is the highest published stable semver. An older retry does not move `latest` backward. A registry or authentication failure is not treated as a missing image.
 
