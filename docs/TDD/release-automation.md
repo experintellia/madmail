@@ -57,7 +57,9 @@ The container tags for that same commit are:
 | `X.Y.Z-unstable` | Immutable. Created only when the registry returns HTTP 404. Reused when `org.opencontainers.image.revision` is this commit. Any other registry response fails the job. |
 | `unstable` | Moving tag. Advanced only when this candidate is the highest `v*-unstable` tag on `main`. |
 
-Non-release commits do not publish a prerelease or move either tag. `latest` is not updated here.
+The unstable image is published only after that GitHub prerelease upload succeeds. A failed Linux build, Windows build, or prerelease upload publishes nothing. The image is built from the commit the `vX.Y.Z-unstable` tag resolves to. Non-release commits do not publish a prerelease or move either tag. `latest` is not updated here.
+
+The moving `unstable` tag is chosen from `origin/main` after a fetch. A retry of an older commit sees a newer tag and leaves the alias where it is.
 
 ## Stable channel
 

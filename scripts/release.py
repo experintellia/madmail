@@ -367,6 +367,18 @@ def latest_release(root):
     return latest_release_at(root, "HEAD")
 
 
+def safe_revision(value):
+    parts = value.split("/")
+    if (
+        not re.fullmatch(r"[A-Za-z0-9._/-]+", value)
+        or value.startswith("-")
+        or value.startswith("/")
+        or ".." in parts
+    ):
+        raise ReleaseError("Invalid revision")
+    return value
+
+
 def channel_tip(root, channel, revision="HEAD"):
     """Highest merged tag for one channel. Stable tags have no prerelease suffix."""
     if channel not in {"stable", "unstable"}:
@@ -605,14 +617,21 @@ def main(argv=None):
         type=Path,
         help="append version, sha and released job outputs",
     )
+    parser.add_argument(
+        "--revision",
+        default="HEAD",
+        help="revision for --channel-tip; default HEAD",
+    )
     args = parser.parse_args(argv)
     try:
         root = Path(git(args.repo, "rev-parse", "--show-toplevel").strip()).resolve()
         if args.channel_tip:
             if args.push:
                 raise ReleaseError("--push requires --write")
-            print(channel_tip(root, args.channel_tip))
+            print(channel_tip(root, args.channel_tip, revision=safe_revision(args.revision)))
             return 0
+        if args.revision != "HEAD":
+            raise ReleaseError("--revision requires --channel-tip")
         result = release(
             root,
             write=args.write,
