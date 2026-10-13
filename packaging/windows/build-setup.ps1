@@ -3,15 +3,19 @@
 #
 # Usage (from repo root or this directory):
 #   .\packaging\windows\build-setup.ps1 -Arch amd64
+#   .\packaging\windows\build-setup.ps1 -Arch amd64 -Version 2.35.0
 #   .\packaging\windows\build-setup.ps1 -Arch arm64
 #   .\packaging\windows\build-setup.ps1 -Arch all
 #
+# -Version is numeric X.Y.Z. When omitted, the repo .version file is used.
 # Does NOT publish GitHub Releases.
 
 param(
     [ValidateSet("amd64", "arm64", "all")]
     [string]$Arch = "amd64",
-    [string]$IsccPath = ""
+    [string]$IsccPath = "",
+    [string]$Version = "",
+    [switch]$PrintVersion
 )
 
 $ErrorActionPreference = "Stop"
@@ -42,8 +46,21 @@ function Ensure-Binary([string]$Name) {
     }
 }
 
-function Build-One([string]$A) {
-    Write-Host "==> Inno Setup Arch=$A"
+function Resolve-AppVersion {
+    $pattern = '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+    if ($Version) {
+        if ($Version -notmatch $pattern) { throw "Version must be numeric X.Y.Z" }
+        return $Version
+    }
+    $versionFile = Join-Path $Root ".version"
+    if (-not (Test-Path $versionFile)) { throw "Pass -Version X.Y.Z or provide .version" }
+    $fromFile = (Get-Content -Raw $versionFile).Trim()
+    if ($fromFile -notmatch $pattern) { throw ".version is not numeric X.Y.Z" }
+    return $fromFile
+}
+
+function Build-One([string]$A, [string]$AppVersion) {
+    Write-Host "==> Inno Setup Arch=$A version=$AppVersion"
     if ($A -eq "amd64") {
         Ensure-Binary "madmail-windows-amd64.exe"
     } else {
@@ -51,7 +68,7 @@ function Build-One([string]$A) {
     }
     $iscc = Find-Iscc
     Write-Host "    ISCC: $iscc"
-    & $iscc "/DArch=$A" $Iss
+    & $iscc "/DArch=$A" "/DMyAppVersion=$AppVersion" $Iss
     if ($LASTEXITCODE -ne 0) { throw "ISCC failed for Arch=$A (exit $LASTEXITCODE)" }
     $out = Join-Path $Build "madmail-windows-$A-setup.exe"
     if (Test-Path $out) {
@@ -61,16 +78,22 @@ function Build-One([string]$A) {
     }
 }
 
+$AppVersion = Resolve-AppVersion
+if ($PrintVersion) {
+    Write-Output $AppVersion
+    exit 0
+}
+
 New-Item -ItemType Directory -Force -Path $Build | Out-Null
 # Do not leave the caller's cwd changed (GHA steps share the process with &).
 Push-Location $Here
 try {
     switch ($Arch) {
-        "amd64" { Build-One "amd64" }
-        "arm64" { Build-One "arm64" }
+        "amd64" { Build-One "amd64" $AppVersion }
+        "arm64" { Build-One "arm64" $AppVersion }
         "all" {
-            Build-One "amd64"
-            Build-One "arm64"
+            Build-One "amd64" $AppVersion
+            Build-One "arm64" $AppVersion
         }
     }
 } finally {

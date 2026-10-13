@@ -75,7 +75,22 @@ The workflow does not read private provenance files. Those can be checked later,
 
 ## Windows installers
 
-`windows.yml` still attaches Inno Setup assets to **stable** published releases and still uploads them with `--clobber`. It does not run that job for unstable prereleases. Using the signed production `madmail-windows-amd64.exe` in the installer is waiting on the private publisher; this change does not invent a replacement.
+`windows.yml` builds `madmail-windows-amd64-setup.exe` only for a published stable release `vX.Y.Z`. Unstable prereleases do not run that job.
+
+The job resolves the Git tag, including annotated tags, and downloads the `madmail-windows-amd64.exe` asset already on that release. It checks:
+
+- the Ed25519 trailer (last 64 bytes) against the public key in `crates/chatmail/src/upgrade.rs`
+- `madmail version` against the tag
+- `.version` and `[workspace.package]` at the tagged commit
+- a full commit SHA in the release's `targetCommitish` when that field is a SHA
+
+A branch or tag name in `targetCommitish` is accepted. The verified bytes are the file Inno Setup packages. The installer version is that same `X.Y.Z`.
+
+Optional checks, used only when the release already has them: a GitHub asset `digest` of `sha256:…`, a `SHA256SUMS` line for `madmail-windows-amd64.exe` (hash of the published bytes, trailer included), and `SOURCE.txt` containing the tag commit. A missing optional file is ignored. A present file that does not match fails the job. No private provenance file is required.
+
+The job uploads `madmail-windows-amd64-setup.exe` only. An identical installer is reused. A different published installer fails the job. The portable executable is not uploaded or replaced.
+
+The private publisher still has to attach the signed `madmail-windows-amd64.exe` to the stable release before this job can succeed. This repository does not define a new publishing protocol for that step. A signed tray asset is not required; the generated installer omits the tray when `build/madmail-tray-windows-amd64.exe` is absent. Smoke tests and local `build-setup.ps1` runs continue to build unsigned development binaries and do not upload them to a release.
 
 ## What CI will not do
 

@@ -184,7 +184,7 @@ GitHub Actions workflow [`.github/workflows/windows.yml`](../../.github/workflow
 |---------|------|
 | **Push to `main`** (merge) | Linux Windows-crate tests, amd64 smoke, arm64 compile |
 | **PR to `main`** (Windows-related paths) | Same as main push |
-| **Stable GitHub Release** published | amd64 smoke → Inno setup → **upload assets to that Release**. Unstable prereleases skip this job. |
+| **Stable GitHub Release** published | amd64 smoke, then Inno setup from the signed `madmail-windows-amd64.exe` already on that release. The job uploads only `madmail-windows-amd64-setup.exe`. Unstable prereleases skip this job. |
 | **`workflow_dispatch`** | Same as main push (validate only; no Release upload) |
 
 | Job | Purpose |
@@ -192,21 +192,21 @@ GitHub Actions workflow [`.github/workflows/windows.yml`](../../.github/workflow
 | `linux-windows-crates` | Unit tests for tray / service / firewall / packaging file presence |
 | `windows-amd64-smoke` | MSVC build, tray smoke, service status, local self-signed install |
 | `windows-arm64-compile` | `cargo check` for `aarch64-pc-windows-msvc` (server + tray); **not** on Release |
-| `windows-amd64-setup` | Inno Setup → setup.exe; **Release only** — attaches assets to the GitHub Release |
+| `windows-amd64-setup` | Stable release only. Verifies the published signed executable and builds the Inno installer from that file. |
 
-**Release assets** (attached when a Release is published):
+**Installer upload** (stable release only):
 
 | File | Notes |
 |------|--------|
-| `madmail-windows-amd64.exe` | Server + CLI |
-| `madmail-tray-windows-amd64.exe` | Tray (if built) |
-| `madmail-windows-amd64-setup.exe` | Inno wizard |
+| `madmail-windows-amd64-setup.exe` | Uploaded when the release does not already have it. An identical file is left in place. A different published installer fails the job. |
 
-A published **stable** GitHub Release runs this workflow and attaches the Windows installer assets. Unstable prereleases are testing builds: CI attaches an unsigned `madmail-windows-amd64.exe` on the prerelease itself and does not run the installer job. The stable job still builds on the runner and uploads with `--clobber`; pointing it at the signed production executable waits for the private publisher. Manual sign-off: [MANUAL-CHECKLIST.md](./MANUAL-CHECKLIST.md). Release channels: [release automation](../../docs/TDD/release-automation.md).
+The portable `madmail-windows-amd64.exe` is an input. The job downloads it from the stable release, checks the Ed25519 trailer and `madmail version`, and passes those bytes to Inno Setup. It does not rebuild that executable or upload it again. A local tray binary is still optional for `build-setup.ps1`; this release job does not build or upload one, so the CI installer omits the tray unless that file is already next to the verified executable.
+
+Unstable prereleases do not run this job. Their unsigned Windows binary is attached by the testing prerelease workflow. Manual sign-off: [MANUAL-CHECKLIST.md](./MANUAL-CHECKLIST.md). Release channels: [release automation](../../docs/TDD/release-automation.md).
 
 ### Windows Defender, SmartScreen, and UAC
 
-CI- and tag-built `setup.exe` / `madmail.exe` are **unsigned** (no Authenticode). That is expected for this open-source project.
+CI- and tag-built `setup.exe` files are **unsigned** (no Authenticode). That is expected for this open-source project. The stable installer copies in the Ed25519-signed production executable; Authenticode is a separate signature and is not added here.
 
 | Prompt / alert | What it is | What to do |
 |----------------|------------|------------|

@@ -1,17 +1,24 @@
 ; Madmail Windows installer (Inno Setup 6+)
 ; Build:  .\build-setup.ps1 -Arch amd64
-;         iscc /DArch=arm64 Madmail.iss
+;         .\build-setup.ps1 -Arch amd64 -Version 2.35.0
+;         iscc /DArch=arm64 /DMyAppVersion=2.35.0 Madmail.iss
 ;
 ; Expects pre-built binaries under repo build/:
 ;   madmail-windows-{amd64,arm64}.exe
 ;   madmail-tray-windows-{amd64,arm64}.exe (optional)
+;
+; MyAppVersion is passed by build-setup.ps1. The 0.0.0 fallback is only for a
+; direct iscc invocation that does not supply /DMyAppVersion.
 
 #ifndef Arch
   #define Arch "amd64"
 #endif
 
+#ifndef MyAppVersion
+  #define MyAppVersion "0.0.0"
+#endif
+
 #define MyAppName "Madmail"
-#define MyAppVersion "2.17.3"
 #define MyAppPublisher "themadorg"
 #define MyAppURL "https://github.com/themadorg/madmail"
 #define MyAppExeName "madmail.exe"
