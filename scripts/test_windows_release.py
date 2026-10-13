@@ -367,6 +367,39 @@ class WindowsReleaseTests(unittest.TestCase):
         with self.assertRaisesRegex(VerifyError, "draft or prerelease"):
             windows_release.plan_upload(self.root, "v1.2.3", setup, runner=prerelease_runner)
 
+    def test_older_release_tree_is_packaged_by_current_tooling(self):
+        self.patch_key()
+        later = commit_version(self.root, "9.9.9", "tooling after the release")
+        planted = self.root / "scripts" / "windows_release.py"
+        planted.parent.mkdir()
+        planted.write_text("raise SystemExit('untrusted')\n", encoding="utf-8")
+        git(self.root, "add", "scripts/windows_release.py")
+        git(self.root, "commit", "-m", "untrusted helper on the later commit")
+        self.assertNotEqual(later, self.commit)
+        self.assertNotEqual(git(self.root, "rev-parse", "HEAD"), self.commit)
+        missing = subprocess.run(
+            ["git", "cat-file", "-e", f"{self.commit}:scripts/windows_release.py"],
+            cwd=self.root,
+            capture_output=True,
+            check=False,
+        )
+        self.assertNotEqual(missing.returncode, 0)
+        self.assertEqual((self.root / ".version").read_text(encoding="utf-8").strip(), "9.9.9")
+        exe = self.write_exe(self.root)
+        dest = self.root / "build" / windows_release.EXE_NAME
+        result = windows_release.prepare(
+            self.root,
+            "v1.2.3",
+            release_meta("v1.2.3", [windows_release.EXE_NAME]),
+            exe,
+            self.root,
+            dest,
+        )
+        self.assertEqual(result["sha"], self.commit)
+        self.assertEqual(result["version"], "1.2.3")
+        self.assertNotEqual(result["sha"], git(self.root, "rev-parse", "HEAD"))
+        self.assertEqual(dest.read_bytes(), self.signed)
+
     def test_workflow_packages_only_a_verified_stable_installer(self):
         source = WORKFLOW.read_text(encoding="utf-8")
         document = yaml.safe_load(source)
@@ -377,13 +410,24 @@ class WindowsReleaseTests(unittest.TestCase):
             setup["if"],
             "github.event_name == 'release' && github.event.release.prerelease == false",
         )
-        self.assertIn("windows_release.py stage", source)
-        self.assertIn("windows_release.py plan-upload", source)
+        self.assertIn("windows_release.py", source)
+        self.assertIn("stage --repo $repo", source)
+        self.assertIn("plan-upload --repo $repo", source)
         self.assertIn('-Version "${{ steps.signed.outputs.version }}"', source)
+        self.assertEqual(source.count("github.event.repository.default_branch"), 2)
+        self.assertIn("path: source", source)
+        self.assertIn("path: tools", source)
+        self.assertIn("tools\\scripts\\windows_release.py", source)
+        self.assertIn("tools\\packaging\\windows\\build-setup.ps1", source)
+        self.assertIn("--repo $repo", source)
+        self.assertNotIn("ref: ${{ github.event.release.tag_name }}", source)
+        self.assertNotIn("ref: ${{ github.sha }}", source)
         self.assertNotIn("--clobber", rendered)
         self.assertNotIn("gh release upload", rendered)
         self.assertNotIn("madmail-windows-amd64-ci", rendered)
         self.assertNotIn("download-artifact", rendered)
+        self.assertNotIn("cargo build", rendered)
+        self.assertNotIn("path: source", yaml.dump(smoke))
         self.assertNotIn("--clobber", WORKFLOW.read_text(encoding="utf-8"))
         self.assertNotIn("--clobber", (REPO / "scripts/windows_release.py").read_text(encoding="utf-8"))
         self.assertIn("github.event_name != 'release'", smoke["if"])

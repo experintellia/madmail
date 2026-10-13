@@ -1,8 +1,8 @@
 # Windows pipeline
 #
 # - Merges / pushes to main (+ Windows-related PRs): lint, amd64 smoke, arm64 compile
-# - Stable GitHub Releases: verify the signed executable already on the release,
-#   build the Inno installer from that file, and upload only the installer
+# - Stable GitHub Releases: packaging tools come from the default branch.
+#   The signed executable is the asset already on that release, not a rebuild.
 # - workflow_dispatch: same as main (validate only); use a Release for setup.exe assets
 name: Windows
 
@@ -166,9 +166,28 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      # Tools and the release commit are different checkouts. An older stable
+      # tag does not contain these scripts. The signed executable is downloaded
+      # from the release; nothing is built from either checkout.
+      - name: Check out the release Git history
+        uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
+          path: source
+
+      - name: Check out current packaging tools
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: tools
+          sparse-checkout: |
+            scripts/windows_release.py
+            scripts/verify_signed_binary.py
+            packaging/windows/Madmail.iss
+            packaging/windows/build-setup.ps1
+            packaging/windows/license.txt
+          sparse-checkout-cone-mode: false
 
       - name: Put OpenSSL on PATH
         shell: pwsh
@@ -189,7 +208,10 @@ jobs:
           TAG: ${{ github.event.release.tag_name }}
         run: |
           $ErrorActionPreference = "Stop"
-          python scripts/windows_release.py stage --repo . --tag "$env:TAG" --dest build\madmail-windows-amd64.exe
+          $python = Join-Path $env:GITHUB_WORKSPACE "tools\scripts\windows_release.py"
+          $repo = Join-Path $env:GITHUB_WORKSPACE "source"
+          $dest = Join-Path $env:GITHUB_WORKSPACE "tools\build\madmail-windows-amd64.exe"
+          python $python stage --repo $repo --tag $env:TAG --dest $dest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Install Inno Setup 6
@@ -208,9 +230,11 @@ jobs:
       - name: Compile setup.exe
         shell: pwsh
         run: |
-          & .\packaging\windows\build-setup.ps1 -Arch amd64 -Version "${{ steps.signed.outputs.version }}"
+          $ErrorActionPreference = "Stop"
+          $setupScript = Join-Path $env:GITHUB_WORKSPACE "tools\packaging\windows\build-setup.ps1"
+          & $setupScript -Arch amd64 -Version "${{ steps.signed.outputs.version }}"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $setup = Join-Path $env:GITHUB_WORKSPACE "build\madmail-windows-amd64-setup.exe"
+          $setup = Join-Path $env:GITHUB_WORKSPACE "tools\build\madmail-windows-amd64-setup.exe"
           if (-not (Test-Path $setup)) { throw "missing $setup" }
           Get-Item $setup | Format-List FullName, Length, LastWriteTime
 
@@ -218,7 +242,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: madmail-windows-amd64-setup
-          path: ${{ github.workspace }}/build/madmail-windows-amd64-setup.exe
+          path: ${{ github.workspace }}/tools/build/madmail-windows-amd64-setup.exe
           retention-days: 14
 
       - name: Upload the installer when it is new or identical
@@ -228,5 +252,8 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          python scripts/windows_release.py plan-upload --repo . --tag "$env:TAG" --installer build\madmail-windows-amd64-setup.exe
+          $python = Join-Path $env:GITHUB_WORKSPACE "tools\scripts\windows_release.py"
+          $repo = Join-Path $env:GITHUB_WORKSPACE "source"
+          $installer = Join-Path $env:GITHUB_WORKSPACE "tools\build\madmail-windows-amd64-setup.exe"
+          python $python plan-upload --repo $repo --tag $env:TAG --installer $installer
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
