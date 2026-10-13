@@ -2,7 +2,7 @@
 #
 # - Merges / pushes to main (+ Windows-related PRs): lint, amd64 smoke, arm64 compile
 # - Stable GitHub Releases: packaging tools come from the default branch.
-#   The signed executable is the asset already on that release, not a rebuild.
+#   The signed server and the tray are assets already on that release, not rebuilds.
 # - workflow_dispatch: same as main (validate only); use a Release for setup.exe assets
 name: Windows
 
@@ -232,7 +232,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $setupScript = Join-Path $env:GITHUB_WORKSPACE "tools\packaging\windows\build-setup.ps1"
-          & $setupScript -Arch amd64 -Version "${{ steps.signed.outputs.version }}"
+          & $setupScript -Arch amd64 -RequireTray -Version "${{ steps.signed.outputs.version }}"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $setup = Join-Path $env:GITHUB_WORKSPACE "tools\build\madmail-windows-amd64-setup.exe"
           if (-not (Test-Path $setup)) { throw "missing $setup" }

@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
 """Stage a stable Windows installer from the signed executable already published.
 
-The workflow downloads ``madmail-windows-amd64.exe`` from a published stable
-GitHub Release, checks it, and may upload only ``madmail-windows-amd64-setup.exe``.
+The workflow downloads ``madmail-windows-amd64.exe`` and
+``madmail-tray-windows-amd64.exe`` from a published stable GitHub Release.
+It checks the server signature and stages both files for Inno Setup. It may
+upload only ``madmail-windows-amd64-setup.exe``.
+
+The tray asset has to be on that same release. A checksum, when the release
+publishes one, checks the tray bytes. It does not prove which commit built
+the tray. This module does not build a tray from another revision, and it
+does not apply the server Ed25519 trailer to the tray.
+
 This module never rebuilds, re-signs, or uploads the portable executable.
 An existing installer is reused when the bytes match and rejected when they differ.
 """
@@ -21,8 +29,14 @@ import verify_signed_binary
 from verify_signed_binary import VerifyError
 
 EXE_NAME = "madmail-windows-amd64.exe"
+TRAY_NAME = "madmail-tray-windows-amd64.exe"
 SETUP_NAME = "madmail-windows-amd64-setup.exe"
 OPTIONAL_ASSETS = ("SHA256SUMS", "SOURCE.txt")
+TRAY_MISSING = (
+    "tray executable is not on the release; "
+    "the private publisher must attach madmail-tray-windows-amd64.exe "
+    "built for this release"
+)
 TAG = re.compile(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\Z")
 SHA = re.compile(r"[0-9a-fA-F]{40}\Z")
 VIEW_FIELDS = "isDraft,isPrerelease,tagName,targetCommitish,assets"
@@ -94,10 +108,12 @@ def manifests_match(root, sha, version):
 
 
 def download_plan(release):
-    """Asset names to download. The portable executable is required."""
+    """Asset names to download. The server and tray executables are required."""
     if asset(release, EXE_NAME) is None:
         raise VerifyError("signed executable is not on the release")
-    names = [EXE_NAME]
+    if asset(release, TRAY_NAME) is None:
+        raise VerifyError(TRAY_MISSING)
+    names = [EXE_NAME, TRAY_NAME]
     for name in OPTIONAL_ASSETS:
         if asset(release, name) is not None:
             names.append(name)
@@ -110,6 +126,48 @@ def write_exact(dest, data):
     temporary = dest.with_name(dest.name + ".tmp")
     temporary.write_bytes(data)
     os.replace(temporary, dest)
+
+
+def verify_tray(path, *, digest, sums_text, source_text, expected_sha):
+    """Check the tray bytes already attached to this release.
+
+    A published digest or ``SHA256SUMS`` entry must match. Neither value
+    proves the commit that produced the tray. ``SOURCE.txt``, when the
+    release has one, is the release's claimed source and must match the tag.
+    The server Ed25519 trailer is not applied here.
+    """
+    path = Path(path) if path is not None else None
+    if path is None or path.name != TRAY_NAME or path.is_symlink() or not path.is_file():
+        raise VerifyError("tray executable was not downloaded")
+    data = path.read_bytes()
+    if not data:
+        raise VerifyError("tray executable is empty")
+    published_checksum = False
+    if digest:
+        try:
+            verify_signed_binary.check_digest(data, digest)
+        except VerifyError as exc:
+            text = str(exc)
+            if "does not match" in text:
+                raise VerifyError("asset digest does not match the downloaded tray") from exc
+            raise VerifyError(f"tray {text}") from exc
+        published_checksum = True
+    if sums_text is not None:
+        try:
+            verify_signed_binary.check_sums(data, sums_text, TRAY_NAME)
+        except VerifyError as exc:
+            text = str(exc)
+            if "does not list" in text:
+                raise VerifyError("SHA256SUMS does not list the tray executable") from exc
+            if "does not match" in text:
+                raise VerifyError("SHA256SUMS does not match the downloaded tray") from exc
+            raise
+        published_checksum = True
+    if source_text is not None:
+        if not expected_sha:
+            raise VerifyError("SOURCE.txt requires the tag commit")
+        verify_signed_binary.check_source_text(source_text, expected_sha)
+    return data, "matched" if published_checksum else "absent"
 
 
 def prepare(root, tag, release, exe, extras, dest, version_text=None):
@@ -151,10 +209,22 @@ def prepare(root, tag, release, exe, extras, dest, version_text=None):
     )
     if Path(exe).name != EXE_NAME:
         raise VerifyError("signed executable was not downloaded")
+    tray_asset = asset(release, TRAY_NAME)
+    if tray_asset is None:
+        raise VerifyError(TRAY_MISSING)
+    tray_data, tray_checksum = verify_tray(
+        None if extras is None else Path(extras) / TRAY_NAME,
+        digest=tray_asset.get("digest") or "",
+        sums_text=sums_text,
+        source_text=source_text,
+        expected_sha=sha,
+    )
     write_exact(dest, data)
-    if Path(dest).read_bytes() != data:
+    tray_dest = Path(dest).parent / TRAY_NAME
+    write_exact(tray_dest, tray_data)
+    if Path(dest).read_bytes() != data or tray_dest.read_bytes() != tray_data:
         raise VerifyError("failed to stage the verified executable")
-    return {"version": version, "sha": sha}
+    return {"version": version, "sha": sha, "tray_checksum": tray_checksum}
 
 
 def installer_plan(existing, fresh):
@@ -216,6 +286,16 @@ def stage(root, tag, dest, runner=run_command):
                 120,
             )
         result = prepare(root, tag, release, folder / EXE_NAME, folder, dest)
+    if result["tray_checksum"] == "matched":
+        print(
+            "tray checksum matched a published digest or SHA256SUMS entry; "
+            "that does not prove which commit built the tray"
+        )
+    else:
+        print(
+            "tray has no published digest or SHA256SUMS entry; "
+            "staged the release asset only"
+        )
     write_github_output(result)
     return result
 

@@ -4,6 +4,7 @@
 # Usage (from repo root or this directory):
 #   .\packaging\windows\build-setup.ps1 -Arch amd64
 #   .\packaging\windows\build-setup.ps1 -Arch amd64 -Version 2.35.0
+#   .\packaging\windows\build-setup.ps1 -Arch amd64 -Version 2.35.0 -RequireTray
 #   .\packaging\windows\build-setup.ps1 -Arch arm64
 #   .\packaging\windows\build-setup.ps1 -Arch all
 #
@@ -15,7 +16,8 @@ param(
     [string]$Arch = "amd64",
     [string]$IsccPath = "",
     [string]$Version = "",
-    [switch]$PrintVersion
+    [switch]$PrintVersion,
+    [switch]$RequireTray
 )
 
 $ErrorActionPreference = "Stop"
@@ -59,16 +61,23 @@ function Resolve-AppVersion {
     return $fromFile
 }
 
-function Build-One([string]$A, [string]$AppVersion) {
+function Build-One([string]$A, [string]$AppVersion, [bool]$RequireTrayApp) {
     Write-Host "==> Inno Setup Arch=$A version=$AppVersion"
     if ($A -eq "amd64") {
         Ensure-Binary "madmail-windows-amd64.exe"
+        $trayName = "madmail-tray-windows-amd64.exe"
     } else {
         Ensure-Binary "madmail-windows-arm64.exe"
+        $trayName = "madmail-tray-windows-arm64.exe"
+    }
+    if ($RequireTrayApp) {
+        Ensure-Binary $trayName
     }
     $iscc = Find-Iscc
     Write-Host "    ISCC: $iscc"
-    & $iscc "/DArch=$A" "/DMyAppVersion=$AppVersion" $Iss
+    $defines = @("/DArch=$A", "/DMyAppVersion=$AppVersion")
+    if ($RequireTrayApp) { $defines += "/DRequireTray=1" }
+    & $iscc @defines $Iss
     if ($LASTEXITCODE -ne 0) { throw "ISCC failed for Arch=$A (exit $LASTEXITCODE)" }
     $out = Join-Path $Build "madmail-windows-$A-setup.exe"
     if (Test-Path $out) {
@@ -89,11 +98,11 @@ New-Item -ItemType Directory -Force -Path $Build | Out-Null
 Push-Location $Here
 try {
     switch ($Arch) {
-        "amd64" { Build-One "amd64" $AppVersion }
-        "arm64" { Build-One "arm64" $AppVersion }
+        "amd64" { Build-One "amd64" $AppVersion ([bool]$RequireTray) }
+        "arm64" { Build-One "arm64" $AppVersion ([bool]$RequireTray) }
         "all" {
-            Build-One "amd64" $AppVersion
-            Build-One "arm64" $AppVersion
+            Build-One "amd64" $AppVersion ([bool]$RequireTray)
+            Build-One "arm64" $AppVersion ([bool]$RequireTray)
         }
     }
 } finally {
