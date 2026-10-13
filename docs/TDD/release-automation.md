@@ -1,0 +1,86 @@
+# Release automation
+
+Public CI versions the repository and publishes **unsigned testing** builds. Stable binaries are still built and signed outside GitHub Actions. This repository does not contain the production publisher, signing keys, or registry credentials for that environment.
+
+`madmail update` / `madmail upgrade` skip draft and prerelease GitHub Releases and still require the existing Ed25519 trailer. Unsigned unstable binaries are not accepted by that updater.
+
+## Versioning
+
+`scripts/release.py` runs on `main` after lint, tests, and cargo audit succeed. It looks at Conventional Commits since the highest merged `vX.Y.Z` or `vX.Y.Z-unstable` tag:
+
+| Commits | Bump |
+|---------|------|
+| `fix:`, `perf:`, `revert:` | patch |
+| `feat:` | minor |
+| Breaking change (`!` or a `BREAKING CHANGE` footer) | major |
+| `docs:`, `chore:`, `ci:`, `test:`, and other types | none |
+
+The numeric manifests stay `X.Y.Z`. The `-unstable` suffix is only on the Git tag, GitHub prerelease, and container tags.
+
+A release updates:
+
+- `.version`
+- `[workspace.package] version` in `Cargo.toml`
+- workspace packages in `Cargo.lock`
+- member manifests that do not inherit the workspace version
+- `CHANGELOG.md`
+
+The root `package.json` was only the semantic-release package and is not a version manifest. Landing and `external/madmail-admin-web` keep their own versions.
+
+The version commit is `chore(release): X.Y.Z [skip ci]`, authored by `Madmail-CI <ci@madmail.chat>`. CI does not sign that commit or its annotated tag. Actions has no production signing key. A local `--sign` run can sign with the operator's own Git key; that is separate from binary signing.
+
+The push is atomic and not forced. A rejected push leaves the remote branch and tags unchanged. The same local checkout can retry the push. A newer `main` tip is not overwritten; the later workflow cuts the release. Re-running a workflow does not add a second changelog heading or tag for the same version.
+
+`python3 scripts/release.py` is a dry run. `--check` only compares the manifests. `--write --push` commits and pushes. Tests live in `scripts/test_release.py` and use temporary repositories.
+
+## Unstable channel
+
+When the version commit is created, the same workflow builds:
+
+- the existing Linux `cargo build --release --locked --bin madmail` artifact
+- an unsigned Windows amd64 `madmail.exe`
+
+It does not build the private static production binary, Windows arm64 release binaries, or the Inno installer. Those stay on their current paths. The Linux CI binary is not the static binary from `scripts/build-release-static.sh`.
+
+After that build and the earlier tests succeed, CI creates a GitHub **prerelease** `vX.Y.Z-unstable` whose notes start with:
+
+> TESTING ONLY — NOT FOR PRODUCTION USE.
+>
+> These builds are unsigned, may contain regressions or incompatible changes, and do not have guaranteed upgrade or downgrade compatibility. They are not supported by the signed production updater.
+
+Assets are `madmail-linux-amd64`, `madmail-windows-amd64.exe`, `SOURCE.txt` (the full source revision), and `SHA256SUMS`. Uploads do not use `--clobber`. A retry reuses matching bytes and fails if an existing asset differs.
+
+The container tags for that same commit are:
+
+| Tag | Meaning |
+|-----|---------|
+| `X.Y.Z-unstable` | Immutable. Created only when the registry returns HTTP 404. Reused when `org.opencontainers.image.revision` is this commit. Any other registry response fails the job. |
+| `unstable` | Moving tag. Advanced only when this candidate is the highest `v*-unstable` tag on `main`. |
+
+Non-release commits do not publish a prerelease or move either tag. `latest` is not updated here.
+
+## Stable channel
+
+Stable publication stays on the private publisher (`make publish` → local `scripts/publish.sh`, which is gitignored and is not replaced by this tree).
+
+When a **published, non-prerelease** GitHub Release `vX.Y.Z` appears, `.github/workflows/stable-docker.yml` builds `ghcr.io/themadorg/madmail:X.Y.Z` from that release's pinned commit. The workflow requires:
+
+- the release target to be a full 40-character SHA
+- git tag `vX.Y.Z` and `vX.Y.Z-unstable` to point at that SHA
+- `Cargo.toml` and `.version` to equal `X.Y.Z`
+
+The version image uses the same 404-or-matching-revision rule. `latest` moves only when this version is the highest published stable semver. An older retry does not move `latest` backward. A registry or authentication failure is not treated as a missing image.
+
+The workflow does not read private provenance files. Those can be checked later, when the private publisher is available, without changing the public versioning script.
+
+## Windows installers
+
+`windows.yml` still attaches Inno Setup assets to **stable** published releases and still uploads them with `--clobber`. It does not run that job for unstable prereleases. Using the signed production `madmail-windows-amd64.exe` in the installer is waiting on the private publisher; this change does not invent a replacement.
+
+## What CI will not do
+
+- No production Ed25519 keys, tokens, or private publish scripts in the repository or Actions.
+- No new tracked `scripts/publish.sh`.
+- No change to signed `update` / `upgrade`.
+- No rewrite or deletion of existing tags.
+- No stable image publish merely because `main` moved.

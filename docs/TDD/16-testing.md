@@ -103,6 +103,10 @@ Replicate and extend the existing Python test suite (`tests/deltachat-test/`).
 - Federation policy bypass attempts (subdomains, IP literals, case)
 - PGP structure fuzzing / malformed messages
 
+## Release automation
+
+`python3 -m unittest discover -s scripts -p 'test_*.py'` covers Conventional Commit version selection, manifest and changelog updates, dry runs, reruns, rejected Git pushes, unsigned prerelease retries, and registry checks. The tests use temporary repositories and fake GitHub or registry responses. They do not publish tags, images, or releases. See [release automation](release-automation.md).
+
 ## 6. Network-Condition Smoke Test (manual, off-CI)
 
 The shared-port demux (443 serving HTTPS + IMAP + submission) exists for networks

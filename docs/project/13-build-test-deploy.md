@@ -60,6 +60,12 @@ Because the admin SPA is a separate SvelteKit project:
 
 If you forget step 3, the binary will still run but `/admin` will show a placeholder telling you to build the UI.
 
+## Public release automation
+
+Pushes to `main` run `scripts/release.py`. Release-worthy Conventional Commits bump `.version`, `Cargo.toml`, and `Cargo.lock`, then tag `vX.Y.Z-unstable`. CI publishes an unsigned GitHub prerelease and the `X.Y.Z-unstable` / `unstable` container tags only after the build and tests pass. `docs`, `chore`, `ci`, and `test` commits do not bump the version.
+
+Stable `vX.Y.Z` binaries are still built and signed outside GitHub Actions. `make publish` runs the local `scripts/publish.sh`, which is not part of this repository. Stable container tags are published only after that process publishes a stable GitHub Release. Details: [release automation](../TDD/release-automation.md).
+
 ## Release Static Binary
 
 `scripts/build-release-static.sh`:

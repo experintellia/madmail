@@ -184,7 +184,7 @@ GitHub Actions workflow [`.github/workflows/windows.yml`](../../.github/workflow
 |---------|------|
 | **Push to `main`** (merge) | Linux Windows-crate tests, amd64 smoke, arm64 compile |
 | **PR to `main`** (Windows-related paths) | Same as main push |
-| **GitHub Release** published | amd64 smoke → Inno setup → **upload assets to that Release** |
+| **Stable GitHub Release** published | amd64 smoke → Inno setup → **upload assets to that Release**. Unstable prereleases skip this job. |
 | **`workflow_dispatch`** | Same as main push (validate only; no Release upload) |
 
 | Job | Purpose |
@@ -202,7 +202,7 @@ GitHub Actions workflow [`.github/workflows/windows.yml`](../../.github/workflow
 | `madmail-tray-windows-amd64.exe` | Tray (if built) |
 | `madmail-windows-amd64-setup.exe` | Inno wizard |
 
-Semantic-release on `main` creates the tag/Release; the Windows workflow then listens for `release: published` and fills in the Windows binaries. Manual sign-off: [MANUAL-CHECKLIST.md](./MANUAL-CHECKLIST.md).
+A published **stable** GitHub Release runs this workflow and attaches the Windows installer assets. Unstable prereleases are testing builds: CI attaches an unsigned `madmail-windows-amd64.exe` on the prerelease itself and does not run the installer job. The stable job still builds on the runner and uploads with `--clobber`; pointing it at the signed production executable waits for the private publisher. Manual sign-off: [MANUAL-CHECKLIST.md](./MANUAL-CHECKLIST.md). Release channels: [release automation](../../docs/TDD/release-automation.md).
 
 ### Windows Defender, SmartScreen, and UAC
 
