@@ -1,3 +1,10 @@
+## [2.35.1](https://github.com/themadorg/madmail/compare/v2.35.0...v2.35.1) (2026-10-14)
+
+
+### Bug Fixes
+
+* **deps:** resolve cargo audit vulnerabilities and bump to 2.35.1 ([4b7f79f](https://github.com/themadorg/madmail/commit/4b7f79fd7b1b4d98ccbf1b2370437595cf654084))
+
 # [2.35.0](https://github.com/themadorg/madmail/compare/v2.34.0...v2.35.0) (2026-10-12)
 
 
