@@ -1,3 +1,10 @@
+## [2.35.2](https://github.com/themadorg/madmail/compare/v2.35.1...v2.35.2) (2026-10-15)
+
+
+### Bug Fixes
+
+* upgrade rustls to 0.23.46 ([480d400](https://github.com/themadorg/madmail/commit/480d4003daec5c95cb2fdde4a829fbae2a3e8cea))
+
 ## [2.35.1](https://github.com/themadorg/madmail/compare/v2.35.0...v2.35.1) (2026-10-14)
 
 
