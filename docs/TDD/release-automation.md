@@ -1,6 +1,6 @@
 # Release automation
 
-Public CI versions the repository and publishes **unsigned testing** builds. Stable binaries are still built and signed outside GitHub Actions. This repository does not contain the production publisher, signing keys, or registry credentials for that environment.
+Public CI versions the repository and publishes **unsigned testing** builds. Stable binaries are built, signed and published using owner-maintained tooling kept outside this repository. This repository does not contain that tooling, signing keys, or registry credentials.
 
 `madmail update` / `madmail upgrade` skip draft and prerelease GitHub Releases and still require the existing Ed25519 trailer. Unsigned unstable binaries are not accepted by that updater.
 
@@ -63,7 +63,7 @@ The moving `unstable` tag is chosen from `origin/main` after a fetch. A retry of
 
 ## Stable channel
 
-Stable publication stays on the private publisher (`make publish` → local `scripts/publish.sh`, which is gitignored and is not replaced by this tree).
+Stable binaries are built, signed and published using owner-maintained tooling kept outside this repository.
 
 When a **published, non-prerelease** GitHub Release `vX.Y.Z` appears, `.github/workflows/stable-docker.yml` builds `ghcr.io/themadorg/madmail:X.Y.Z` from the commit that Git tag resolves to. Annotated tags are peeled. The workflow checks out that commit, then checks that `.version` and `[workspace.package]` equal `X.Y.Z`.
 
@@ -71,7 +71,7 @@ A full 40-character SHA in the release's `targetCommitish` must match the tag. A
 
 The version image uses the same 404-or-matching-revision rule. `latest` moves only when this version is the highest published stable semver. An older retry does not move `latest` backward. A registry or authentication failure is not treated as a missing image.
 
-The workflow does not read private provenance files. Those can be checked later, when the private publisher is available, without changing the public versioning script.
+The workflow does not read private provenance files. Checking those files stays with owner-maintained tooling kept outside this repository and does not change the public versioning script.
 
 ## Windows installers
 
@@ -94,7 +94,7 @@ When the tray asset has a `sha256` digest, or `SHA256SUMS` lists it, those value
 
 The job uploads `madmail-windows-amd64-setup.exe` only. An identical installer is reused. A different published installer fails the job. The portable server executable and the tray executable are not uploaded or replaced. The smoke-test artifact is not reused.
 
-The private publisher has to attach both `madmail-windows-amd64.exe` (Ed25519 trailer) and `madmail-tray-windows-amd64.exe` (built for that same release) before this job can succeed. If it publishes `SHA256SUMS`, that file must list the tray as well as the server. This repository does not define a new publishing protocol for that step. Local `build-setup.ps1` runs still treat the tray as optional unless `-RequireTray` is passed, and they do not upload anything to a release.
+Owner-maintained tooling kept outside this repository has to attach both `madmail-windows-amd64.exe` (Ed25519 trailer) and `madmail-tray-windows-amd64.exe` (built for that same release) before this job can succeed. If it publishes `SHA256SUMS`, that file must list the tray as well as the server. This repository does not define a new publishing protocol for that step. Local `build-setup.ps1` runs still treat the tray as optional unless `-RequireTray` is passed, and they do not upload anything to a release.
 
 ## What CI will not do
 
