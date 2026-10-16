@@ -184,7 +184,7 @@ GitHub Actions workflow [`.github/workflows/windows.yml`](../../.github/workflow
 |---------|------|
 | **Push to `main`** (merge) | Linux Windows-crate tests, amd64 smoke, arm64 compile |
 | **PR to `main`** (Windows-related paths) | Same as main push |
-| **GitHub Release** published | amd64 smoke → Inno setup → **upload assets to that Release** |
+| **Stable GitHub Release** published | Inno setup only. Smoke tests do not run and do not gate it. Packaging scripts come from the default branch. The signed server and the tray are the assets already on that release. The job uploads only `madmail-windows-amd64-setup.exe`. Unstable prereleases skip this job. |
 | **`workflow_dispatch`** | Same as main push (validate only; no Release upload) |
 
 | Job | Purpose |
@@ -192,21 +192,23 @@ GitHub Actions workflow [`.github/workflows/windows.yml`](../../.github/workflow
 | `linux-windows-crates` | Unit tests for tray / service / firewall / packaging file presence |
 | `windows-amd64-smoke` | MSVC build, tray smoke, service status, local self-signed install |
 | `windows-arm64-compile` | `cargo check` for `aarch64-pc-windows-msvc` (server + tray); **not** on Release |
-| `windows-amd64-setup` | Inno Setup → setup.exe; **Release only** — attaches assets to the GitHub Release |
+| `windows-amd64-setup` | Stable release only. Uses current default-branch tooling to verify the published signed server, stage the published tray, and build the Inno installer. |
 
-**Release assets** (attached when a Release is published):
+**Installer upload** (stable release only):
 
 | File | Notes |
 |------|--------|
-| `madmail-windows-amd64.exe` | Server + CLI |
-| `madmail-tray-windows-amd64.exe` | Tray (if built) |
-| `madmail-windows-amd64-setup.exe` | Inno wizard |
+| `madmail-windows-amd64-setup.exe` | Uploaded when the release does not already have it. An identical file is left in place. A different published installer fails the job. |
 
-Semantic-release on `main` creates the tag/Release; the Windows workflow then listens for `release: published` and fills in the Windows binaries. Manual sign-off: [MANUAL-CHECKLIST.md](./MANUAL-CHECKLIST.md).
+The portable `madmail-windows-amd64.exe` and `madmail-tray-windows-amd64.exe` are inputs. The job downloads both from the stable release. It checks the server Ed25519 trailer and `madmail version`, and it checks a published tray digest or `SHA256SUMS` line when the release has one. A tray checksum does not prove which commit built the tray. The stable compile passes `-RequireTray`, so Inno Setup fails if that file is missing. The job does not rebuild either executable, does not take them from the smoke-test artifact, and does not upload them again.
+
+A local `build-setup.ps1` run still treats the tray as optional. Pass `-RequireTray` to fail when `build/madmail-tray-windows-amd64.exe` is absent.
+
+Unstable prereleases do not run this job. Their unsigned Windows binary is attached by the testing prerelease workflow. Manual sign-off: [MANUAL-CHECKLIST.md](./MANUAL-CHECKLIST.md). Release channels: [release automation](../../docs/TDD/release-automation.md).
 
 ### Windows Defender, SmartScreen, and UAC
 
-CI- and tag-built `setup.exe` / `madmail.exe` are **unsigned** (no Authenticode). That is expected for this open-source project.
+CI- and tag-built `setup.exe` files are **unsigned** (no Authenticode). That is expected for this open-source project. The stable installer copies in the Ed25519-signed production executable; Authenticode is a separate signature and is not added here.
 
 | Prompt / alert | What it is | What to do |
 |----------------|------------|------------|

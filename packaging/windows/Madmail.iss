@@ -1,17 +1,29 @@
 ; Madmail Windows installer (Inno Setup 6+)
 ; Build:  .\build-setup.ps1 -Arch amd64
-;         iscc /DArch=arm64 Madmail.iss
+;         .\build-setup.ps1 -Arch amd64 -Version 2.35.0
+;         iscc /DArch=arm64 /DMyAppVersion=2.35.0 Madmail.iss
 ;
 ; Expects pre-built binaries under repo build/:
 ;   madmail-windows-{amd64,arm64}.exe
-;   madmail-tray-windows-{amd64,arm64}.exe (optional)
+;   madmail-tray-windows-{amd64,arm64}.exe
+;     optional for a local build; required when iscc is passed /DRequireTray=1
+;
+; MyAppVersion is passed by build-setup.ps1. The 0.0.0 fallback is only for a
+; direct iscc invocation that does not supply /DMyAppVersion.
 
 #ifndef Arch
   #define Arch "amd64"
 #endif
 
+#ifndef MyAppVersion
+  #define MyAppVersion "0.0.0"
+#endif
+
+#ifndef RequireTray
+  #define RequireTray "0"
+#endif
+
 #define MyAppName "Madmail"
-#define MyAppVersion "2.17.3"
 #define MyAppPublisher "themadorg"
 #define MyAppURL "https://github.com/themadorg/madmail"
 #define MyAppExeName "madmail.exe"
@@ -74,8 +86,13 @@ Name: "startservice"; Description: "Start Madmail &service after install"; Group
 [Files]
 ; Server binary (required)
 Source: "{#SourceMadmail}"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion
-; Tray helper (skip if not built yet)
+; Tray helper. Stable release builds pass /DRequireTray=1 so a missing file
+; fails the compile. A local build still skips the tray when it was not built.
+#if RequireTray == "1"
+Source: "{#SourceTray}"; DestDir: "{app}"; DestName: "{#MyTrayExeName}"; Flags: ignoreversion
+#else
 Source: "{#SourceTray}"; DestDir: "{app}"; DestName: "{#MyTrayExeName}"; Flags: ignoreversion skipifsourcedoesntexist
+#endif
 
 [Icons]
 Name: "{group}\Madmail Tray"; Filename: "{app}\{#MyTrayExeName}"; WorkingDir: "{app}"; Check: TrayPresent
