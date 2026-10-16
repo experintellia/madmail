@@ -39,7 +39,7 @@
 
 #if TestingBuild == "1"
   #define MyAppName "Madmail TESTING"
-  #define MyTestingLabel "{#MyAppVersion}-unstable TESTING ONLY - NOT FOR PRODUCTION USE"
+  #define MyTestingLabel MyAppVersion + "-unstable TESTING ONLY - NOT FOR PRODUCTION USE"
 #else
   #define MyAppName "Madmail"
 #endif

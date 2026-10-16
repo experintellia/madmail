@@ -102,7 +102,7 @@ class UnstablePublicationTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, matrix_text)
         recipes = (
-            "cargo rustc --release --locked --bin madmail -- -C target-feature=+crt-static",
+            "cargo rustc -p chatmail --release --locked --bin madmail -- -C target-feature=+crt-static",
             "cargo zigbuild --release --locked --target x86_64-unknown-linux-musl --bin madmail",
             "cargo zigbuild --release --locked --target aarch64-unknown-linux-musl --bin madmail",
             "cargo build --release --locked --target aarch64-unknown-linux-gnu --bin madmail",

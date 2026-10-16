@@ -597,6 +597,11 @@ class AssetContractTests(unittest.TestCase):
         self.assertIn("MadmailTray", testing_text)
         self.assertIn("UsePreviousAppDir=no", testing_text)
         self.assertIn("DefaultDirName={autopf}\\MadmailTesting", testing_text)
+        self.assertIn(
+            '#define MyTestingLabel MyAppVersion + "-unstable TESTING ONLY - NOT FOR PRODUCTION USE"',
+            text,
+        )
+        self.assertNotIn("{#MyAppVersion}-unstable", text)
         self.assertIn('#define MyServiceName "Madmail"', testing_text)
         self.assertIn('Name: "{commonappdata}\\Madmail"', testing_text)
         gate = testing_text.split("function InitializeSetup", 1)[1].split("function ", 1)[0]

@@ -182,9 +182,10 @@ jobs:
           export CHATMAIL_REQUIRE_ADMIN_WEB=1
           export CHATMAIL_ADMIN_WEB_BUILD="${GITHUB_WORKSPACE}/admin-web"
           export CHATMAIL_ADMIN_WEB_GENERATION="$GENERATION"
-          # Public static-pie recipe from the Makefile comment. The flag is after --
-          # so proc-macros are not rebuilt with +crt-static. The private script is not in this repo.
-          cargo rustc --release --locked --bin madmail -- -C target-feature=+crt-static
+          # Public static-pie recipe from the Makefile comment. The root manifest is
+          # virtual, so -p selects the server package. The flag is after -- so
+          # proc-macros are not rebuilt with +crt-static. The private script is not in this repo.
+          cargo rustc -p chatmail --release --locked --bin madmail -- -C target-feature=+crt-static
           git diff --exit-code -- Cargo.lock
           bin=target/release/madmail
           test -f "$bin"

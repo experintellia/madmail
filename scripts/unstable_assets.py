@@ -12,7 +12,9 @@ mode ``0755``. The Windows ``.zip`` contains one regular file named
 release assets.
 
 ``madmail-linux-amd64-legacy`` is the public static-pie build:
-``cargo rustc --release --locked --bin madmail -- -C target-feature=+crt-static``.
+``cargo rustc -p chatmail --release --locked --bin madmail -- -C target-feature=+crt-static``.
+The root manifest is virtual, so the server package has to be selected.
+The ``+crt-static`` flag stays after ``--``.
 ``scripts/build-release-static.sh`` is not in this repository. The checker
 requires no ELF interpreter, no ``DT_NEEDED`` entries, and a GNU ABI note.
 A GLIBC symbol ceiling is not that static contract. ``zig cc`` is not used
