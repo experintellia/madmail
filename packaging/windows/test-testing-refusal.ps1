@@ -75,22 +75,32 @@ try {
     $outsideHash = Get-Sha256 $outside
     $insideHash = Get-Sha256 $inside
     $log = Join-Path $sentinelRoot "setup.log"
-    $proc = Start-Process -FilePath $SetupPath -ArgumentList @(
-        "/VERYSILENT",
-        "/SUPPRESSMSGBOXES",
-        "/NORESTART",
-        "/NOCANCEL",
-        "/LOG=$log"
-    ) -PassThru -WindowStyle Hidden
-    $timedOut = -not $proc.WaitForExit(90000)
-    if ($timedOut) {
-        & taskkill.exe /PID $proc.Id /T /F | Out-Null
-        try { $proc.WaitForExit(5000) | Out-Null } catch { }
-        $reasons.Add("installer exceeded 90000ms")
-    } else {
-        $proc.Refresh()
-        if ($proc.ExitCode -eq 0) {
-            $reasons.Add("installer exit code was 0")
+    # One raw command line. An argument array quotes each switch, and Inno
+    # Setup then ignores "/VERYSILENT", so the hidden wizard waits forever.
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = (Resolve-Path -LiteralPath $SetupPath).Path
+    $psi.Arguments = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /NOCANCEL /SP- /LOG=`"$log`""
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $proc = New-Object System.Diagnostics.Process
+    $proc.StartInfo = $psi
+    try {
+        [void]$proc.Start()
+    } catch {
+        $reasons.Add("installer did not start: $($_.Exception.Message)")
+        $proc = $null
+    }
+    if ($null -ne $proc) {
+        $timedOut = -not $proc.WaitForExit(90000)
+        if ($timedOut) {
+            & taskkill.exe /PID $proc.Id /T /F | Out-Null
+            try { $proc.WaitForExit(5000) | Out-Null } catch { }
+            $reasons.Add("installer exceeded 90000ms")
+        } else {
+            $proc.Refresh()
+            if ($proc.ExitCode -eq 0) {
+                $reasons.Add("installer exit code was 0")
+            }
         }
     }
 
@@ -115,7 +125,11 @@ try {
     if ($autostart -ne $outside) { $reasons.Add("autostart sentinel changed") }
 
     if ($reasons.Count -gt 0) {
-        throw ("testing installer was not refused before installation effects: " + ($reasons -join "; "))
+        $detail = "setup log was not created"
+        if (Test-Path -LiteralPath $log) {
+            $detail = (Get-Content -LiteralPath $log -Tail 40 -ErrorAction SilentlyContinue) -join "`n"
+        }
+        throw ("testing installer was not refused before installation effects: " + ($reasons -join "; ") + "`n" + $detail)
     }
     Write-Host "testing installer refused with exit $($proc.ExitCode); sentinels unchanged"
 } finally {

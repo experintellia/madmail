@@ -140,6 +140,8 @@ class UnstablePublicationTests(unittest.TestCase):
         for needle in (
             "/VERYSILENT",
             "/SUPPRESSMSGBOXES",
+            "/SP-",
+            "UseShellExecute = $false",
             "WaitForExit(90000)",
             "8F3C2A91-6B4E-4D2A-9C71-0A1B2C3D4E5F",
             "MadmailTray",
