@@ -1,3 +1,19 @@
+# [2.36.0](https://github.com/themadorg/madmail/compare/v2.35.2...v2.36.0-unstable) (2026-10-16)
+
+### Features
+
+* **ci:** add a standalone Conventional Commit release script ([1486d8e](https://github.com/themadorg/madmail/commit/1486d8e172a0a8529f1acf725543165192807959))
+* **ci:** publish unsigned unstable builds separately from stable images ([d156152](https://github.com/themadorg/madmail/commit/d15615286820dfd307b30819803b35a5266159b7))
+
+### Bug Fixes
+
+* **ci:** build stable images from the Git tag ([d4ccfb2](https://github.com/themadorg/madmail/commit/d4ccfb20047b39991fa96b62c1f55f8378a5faf3))
+* **ci:** package Windows installers with current tooling ([22ec595](https://github.com/themadorg/madmail/commit/22ec595704278eb5933c7d7ecdef3ca696ace5ab))
+* **ci:** package stable Windows installers from the signed release binary ([44970a9](https://github.com/themadorg/madmail/commit/44970a9b5e8b2948689122e1099863ae52e8e42f))
+* **ci:** package stable Windows installers without the smoke build ([1806eef](https://github.com/themadorg/madmail/commit/1806eefc68b74b675391c783b7f5053e99418f79))
+* **ci:** publish unstable images only after the testing prerelease ([c1f927f](https://github.com/themadorg/madmail/commit/c1f927fc3adb315f1c2214645aabf0522397a2c5))
+* **ci:** require the published Windows tray in stable installers ([9eed6cc](https://github.com/themadorg/madmail/commit/9eed6cc327fa51a86c48dd4e48a9b1d44203db3f))
+
 ## [2.35.2](https://github.com/themadorg/madmail/compare/v2.35.1...v2.35.2) (2026-10-15)
 
 
