@@ -1,3 +1,17 @@
+## [2.35.2](https://github.com/themadorg/madmail/compare/v2.35.1...v2.35.2) (2026-10-15)
+
+
+### Bug Fixes
+
+* upgrade rustls to 0.23.46 ([480d400](https://github.com/themadorg/madmail/commit/480d4003daec5c95cb2fdde4a829fbae2a3e8cea))
+
+## [2.35.1](https://github.com/themadorg/madmail/compare/v2.35.0...v2.35.1) (2026-10-14)
+
+
+### Bug Fixes
+
+* **deps:** resolve cargo audit vulnerabilities and bump to 2.35.1 ([4b7f79f](https://github.com/themadorg/madmail/commit/4b7f79fd7b1b4d98ccbf1b2370437595cf654084))
+
 # [2.35.0](https://github.com/themadorg/madmail/compare/v2.34.0...v2.35.0) (2026-10-12)
 
 
