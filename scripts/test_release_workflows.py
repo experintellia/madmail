@@ -74,7 +74,11 @@ class UnstablePublicationTests(unittest.TestCase):
         self.assertEqual(set(matrix["jobs"]), set(required) | {"unstable-validate"})
         for name in required:
             self.assertNotIn("if", matrix["jobs"][name])
-            self.assertIn("./.github/actions/unstable-prepare", yaml.dump(matrix["jobs"][name]))
+            steps = matrix["jobs"][name]["steps"]
+            self.assertEqual(steps[0]["uses"], "actions/checkout@v4")
+            self.assertEqual(steps[0]["with"]["ref"], "${{ inputs.sha }}")
+            self.assertFalse(steps[0]["with"]["persist-credentials"])
+            self.assertEqual(steps[1]["uses"], "./.github/actions/unstable-prepare")
         validate = matrix["jobs"]["unstable-validate"]
         self.assertEqual(validate["needs"], required)
         self.assertEqual(validate["if"], "always() && inputs.mode == 'build-only'")
@@ -174,10 +178,15 @@ class UnstablePublicationTests(unittest.TestCase):
         self.assertEqual(publication["permissions"], {"contents": "read"})
         self.assertNotIn("secrets", publication)
         action = (REPO / ".github/actions/unstable-prepare/action.yml").read_text(encoding="utf-8")
-        self.assertIn("ref: ${{ inputs.sha }}", action)
+        self.assertNotIn("actions/checkout", action)
         self.assertNotIn("github.sha", action)
         self.assertIn("scripts/unstable_matrix.py prepare", action)
-        self.assertIn("persist-credentials: false", action)
+        self.assertEqual(matrix_text.count("ref: ${{ inputs.sha }}"), 8)
+        self.assertEqual(matrix_text.count("persist-credentials: false"), 8)
+        validate_steps = validate["steps"]
+        self.assertEqual(validate_steps[0]["uses"], "actions/checkout@v4")
+        self.assertEqual(validate_steps[0]["with"]["ref"], "${{ inputs.sha }}")
+        self.assertEqual(validate_steps[1]["uses"], "./.github/actions/unstable-prepare")
         confirm = next(
             step for step in docker["steps"] if step.get("name") == "Confirm the unstable tag commit"
         )

@@ -1,5 +1,5 @@
 name: Prepare one unsigned source commit
-description: Check out the selected commit and verify build-only or publication metadata.
+description: Verify build-only or publication metadata for the already checked-out commit.
 
 inputs:
   mode:
@@ -51,14 +51,6 @@ runs:
           echo "selected commit is not a full SHA"
           exit 1
         }
-
-    - name: Check out the selected commit
-      uses: actions/checkout@v4
-      with:
-        ref: ${{ inputs.sha }}
-        fetch-depth: 0
-        submodules: recursive
-        persist-credentials: false
 
     - name: Verify manifests, gitlink, and lockfile
       id: prepare
