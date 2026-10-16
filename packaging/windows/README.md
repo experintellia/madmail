@@ -41,7 +41,7 @@ Stable releases package the verified published server and tray, then upload only
 
 Testing setup is only for a fresh disposable Windows VM. It uses a different Inno application id and `Program Files\MadmailTesting`, and it does not reuse a previous install directory. The server and tray still use the production service name `Madmail`, `ProgramData\Madmail`, and the `MadmailTray` autostart value. Setup stops before copying files when a stable uninstall entry or any of those shared resources is already present. A second run on the same VM is refused for the same reason. Stable setup keeps its original application id, service, directories, and autostart. The wizard still does not add an iroh-relay install task. A server built with a relay embedded carries that relay inside the server binary.
 
-Pull-request CI compiles this testing installer from the Windows server and tray built in that run. It starts the installer only on the GitHub-hosted runner, with synthetic stable markers, `/VERYSILENT`, `/SUPPRESSMSGBOXES`, and a timeout, and it requires setup to stop before copying files. It does not install on a maintainer machine. The publication job does not run the installer.
+Pull-request CI compiles this testing installer from the Windows server and tray built in that run. It starts the installer only on the GitHub-hosted runner, with synthetic stable markers, `/VERYSILENT`, `/SUPPRESSMSGBOXES`, and a timeout, and it requires setup to stop before copying files. The refusal uses `SuppressibleMsgBox`, because a plain `MsgBox` is not suppressed by that command. It does not install on a maintainer machine. The publication job does not run the installer.
 
 ### Wizard flow
 

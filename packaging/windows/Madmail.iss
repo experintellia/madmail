@@ -205,10 +205,11 @@ function InitializeSetup: Boolean;
 begin
   Result := not TestingStableResourcesPresent;
   if not Result then
-    MsgBox('Madmail TESTING cannot be installed on a machine that already has stable Madmail.'#13#10#13#10 +
+    { MsgBox ignores /SUPPRESSMSGBOXES and would block a hidden silent run. }
+    SuppressibleMsgBox('Madmail TESTING cannot be installed on a machine that already has stable Madmail.'#13#10#13#10 +
       'This testing setup uses its own installer id and program directory, but the server and tray still use the production service name Madmail, ProgramData\Madmail, and the MadmailTray autostart value. Setup stops before copying files when any of those, or the stable uninstall entry, is present.'#13#10#13#10 +
       'Install this testing build only on a fresh disposable Windows VM.',
-      mbError, MB_OK);
+      mbError, MB_OK, IDOK);
 end;
 #endif
 

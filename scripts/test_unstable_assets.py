@@ -607,6 +607,8 @@ class AssetContractTests(unittest.TestCase):
         gate = testing_text.split("function InitializeSetup", 1)[1].split("function ", 1)[0]
         for effect in ("FileCopy", "DeleteFile", "DelTree", "Exec(", "ShellExec"):
             self.assertNotIn(effect, gate)
+        self.assertIn("SuppressibleMsgBox(", gate)
+        self.assertFalse(any(line.strip().startswith("MsgBox(") for line in gate.splitlines()))
 
 
 def _marker(server):
