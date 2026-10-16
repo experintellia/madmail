@@ -23,7 +23,26 @@
   #define RequireTray "0"
 #endif
 
-#define MyAppName "Madmail"
+; TestingBuild=1 is the unsigned prerelease installer only.
+; The stable workflow does not pass /DTestingBuild.
+;
+; Testing is not a side-by-side install. It has its own Inno AppId and program
+; directory so Inno will not treat it as an upgrade of stable. The server and
+; tray programs still register the service name Madmail, ProgramData\Madmail,
+; and the HKCU Run value MadmailTray. InitializeSetup aborts before any file is
+; copied when a stable uninstall entry or any of those shared resources exists.
+; The supported environment is a fresh disposable Windows VM. A second run on
+; the same VM is refused as well, because the first run creates those resources.
+#ifndef TestingBuild
+  #define TestingBuild "0"
+#endif
+
+#if TestingBuild == "1"
+  #define MyAppName "Madmail TESTING"
+  #define MyTestingLabel "{#MyAppVersion}-unstable TESTING ONLY - NOT FOR PRODUCTION USE"
+#else
+  #define MyAppName "Madmail"
+#endif
 #define MyAppPublisher "themadorg"
 #define MyAppURL "https://github.com/themadorg/madmail"
 #define MyAppExeName "madmail.exe"
@@ -41,14 +60,24 @@
 #endif
 
 [Setup]
+#if TestingBuild == "1"
+AppId={{E7A41C90-2B6D-4F58-8C13-5D9A0E6B7F24}
+UsePreviousAppDir=no
+DefaultDirName={autopf}\MadmailTesting
+#else
 AppId={{8F3C2A91-6B4E-4D2A-9C71-0A1B2C3D4E5F}
+DefaultDirName={autopf}\{#MyAppName}
+#endif
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
+#if TestingBuild == "1"
+AppVerName={#MyTestingLabel}
+VersionInfoProductTextVersion={#MyTestingLabel}
+#endif
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}/releases
-DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 LicenseFile=license.txt
@@ -92,6 +121,9 @@ Source: "{#SourceMadmail}"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags
 Source: "{#SourceTray}"; DestDir: "{app}"; DestName: "{#MyTrayExeName}"; Flags: ignoreversion
 #else
 Source: "{#SourceTray}"; DestDir: "{app}"; DestName: "{#MyTrayExeName}"; Flags: ignoreversion skipifsourcedoesntexist
+#endif
+#if TestingBuild == "1"
+Source: "..\..\build\UNSTABLE.txt"; DestDir: "{app}"; DestName: "UNSTABLE.txt"; Flags: ignoreversion nocompression
 #endif
 
 [Icons]
@@ -141,6 +173,44 @@ var
   FinishedMsg: String;
   { True = remove %ProgramData%\Madmail (config + mail); False = keep. }
   UninstallWipeData: Boolean;
+
+#if TestingBuild == "1"
+{ Inno calls InitializeSetup before the wizard and before [Files] are copied. }
+function TestingStableResourcesPresent: Boolean;
+var
+  UninstallKey: String;
+begin
+  UninstallKey := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\';
+  UninstallKey := UninstallKey + Chr(123);
+  UninstallKey := UninstallKey + '8F3C2A91-6B4E-4D2A-9C71-0A1B2C3D4E5F';
+  UninstallKey := UninstallKey + Chr(125);
+  UninstallKey := UninstallKey + '_is1';
+  Result :=
+    RegKeyExists(HKLM, UninstallKey) or
+    RegKeyExists(HKLM32, UninstallKey) or
+    RegKeyExists(HKLM64, UninstallKey) or
+    RegKeyExists(HKCU, UninstallKey) or
+    RegKeyExists(HKCU32, UninstallKey) or
+    RegKeyExists(HKCU64, UninstallKey) or
+    RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\Madmail') or
+    RegKeyExists(HKLM64, 'SYSTEM\CurrentControlSet\Services\Madmail') or
+    RegValueExists(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'MadmailTray') or
+    RegValueExists(HKCU32, 'Software\Microsoft\Windows\CurrentVersion\Run', 'MadmailTray') or
+    RegValueExists(HKCU64, 'Software\Microsoft\Windows\CurrentVersion\Run', 'MadmailTray') or
+    DirExists(ExpandConstant('{commonappdata}\Madmail')) or
+    DirExists(ExpandConstant('{autopf}\Madmail'));
+end;
+
+function InitializeSetup: Boolean;
+begin
+  Result := not TestingStableResourcesPresent;
+  if not Result then
+    MsgBox('Madmail TESTING cannot be installed on a machine that already has stable Madmail.'#13#10#13#10 +
+      'This testing setup uses its own installer id and program directory, but the server and tray still use the production service name Madmail, ProgramData\Madmail, and the MadmailTray autostart value. Setup stops before copying files when any of those, or the stable uninstall entry, is present.'#13#10#13#10 +
+      'Install this testing build only on a fresh disposable Windows VM.',
+      mbError, MB_OK);
+end;
+#endif
 
 function TrayPresent: Boolean;
 begin

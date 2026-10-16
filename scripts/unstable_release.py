@@ -2,13 +2,15 @@
 """Publish an unsigned testing prerelease. Never signs or replaces assets."""
 
 import argparse
-import hashlib
 import os
 import re
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+import unstable_assets
+from unstable_assets import AssetError
 
 WARNING = (
     "TESTING ONLY — NOT FOR PRODUCTION USE.\n"
@@ -17,7 +19,6 @@ WARNING = (
     "and do not have guaranteed upgrade or downgrade compatibility. They are not "
     "supported by the signed production updater.\n"
 )
-ALLOWED = ("madmail-linux-amd64", "madmail-windows-amd64.exe")
 TAG = re.compile(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-unstable\Z")
 SHA = re.compile(r"[0-9a-f]{40}\Z")
 VERSION_HEADING = re.compile(r"^# \[([0-9]+\.[0-9]+\.[0-9]+)\].*$", re.MULTILINE)
@@ -71,37 +72,27 @@ def assert_local_tag(tag, sha):
         raise UnstableError("tag does not point at the expected commit")
 
 
-def collect_binaries(directory):
-    if not directory.is_dir() or directory.is_symlink():
-        raise UnstableError("assets directory is unsafe")
-    found = []
-    for name in ALLOWED:
-        path = directory / name
-        if path.is_symlink() or not path.is_file():
-            raise UnstableError(f"missing unsigned binary: {name}")
-        if directory.resolve() not in path.resolve().parents:
-            raise UnstableError("unsafe asset path")
-        found.append(path)
-    return found
-
-
-def stage(binaries, sha, dest):
-    dest.mkdir(parents=True, exist_ok=True)
-    staged = []
-    for path in binaries:
-        target = dest / path.name
-        target.write_bytes(path.read_bytes())
-        staged.append(target)
-    source = dest / "SOURCE.txt"
+def stage(directory, sha, version, generation, relays, dest):
+    """Pack the required payloads, then add SOURCE.txt and SHA256SUMS."""
+    try:
+        staged = unstable_assets.prepare(directory, dest, version, generation, relays)
+    except AssetError as exc:
+        raise UnstableError(str(exc)) from exc
+    source = dest / unstable_assets.SOURCE_NAME
     source.write_text(sha + "\n", encoding="utf-8")
     staged.append(source)
-    lines = []
-    for path in sorted(staged, key=lambda item: item.name):
-        digest = hashlib.sha256(path.read_bytes()).hexdigest()
-        lines.append(f"{digest}  {path.name}")
-    sums = dest / "SHA256SUMS"
-    sums.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    try:
+        text = unstable_assets.checksum_text(staged)
+    except AssetError as exc:
+        raise UnstableError(str(exc)) from exc
+    sums = dest / unstable_assets.SUMS_NAME
+    sums.write_text(text, encoding="utf-8")
+    if sums.name in text:
+        raise UnstableError("checksum file lists itself")
     staged.append(sums)
+    names = [path.name for path in staged]
+    if len(names) != len(set(names)) or set(names) != set(unstable_assets.UPLOADED_NAMES):
+        raise UnstableError("staged upload is not the 16-asset set")
     return sorted(staged, key=lambda item: item.name)
 
 
@@ -213,18 +204,32 @@ def main(argv=None):
     parser.add_argument("--tag", required=True)
     parser.add_argument("--sha", required=True)
     parser.add_argument("--version", required=True)
+    parser.add_argument("--generation", required=True)
     parser.add_argument("--changelog", type=Path, required=True)
     parser.add_argument("--assets", type=Path, required=True)
     parser.add_argument("--write", action="store_true")
     args = parser.parse_args(argv)
     try:
+        if args.write and os.environ.get("GITHUB_EVENT_NAME", "") in {
+            "pull_request",
+            "pull_request_target",
+        }:
+            raise UnstableError("publication cannot run for a pull request")
         validate(args.tag, args.sha, args.version)
         assert_local_tag(args.tag, args.sha)
         notes = build_notes(
             args.version, args.sha, args.changelog.read_text(encoding="utf-8")
         )
+        relays = unstable_assets.fetch_relays()
         with tempfile.TemporaryDirectory(prefix="unstable-stage-") as directory:
-            files = stage(collect_binaries(args.assets), args.sha, Path(directory))
+            files = stage(
+                args.assets,
+                args.sha,
+                args.version,
+                args.generation,
+                relays,
+                Path(directory),
+            )
             result = publish_testing_release(
                 args.tag,
                 args.sha,
@@ -238,8 +243,8 @@ def main(argv=None):
             f"uploaded {len(result['uploaded'])} asset(s)"
         )
         return 0
-    except (UnstableError, OSError, ValueError) as exc:
-        message = str(exc) if isinstance(exc, UnstableError) else type(exc).__name__
+    except (UnstableError, AssetError, OSError, ValueError) as exc:
+        message = str(exc) if isinstance(exc, (UnstableError, AssetError)) else type(exc).__name__
         print(f"unstable: {message}", file=sys.stderr)
         return 1
 
