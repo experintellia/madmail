@@ -1,3 +1,16 @@
+# [2.37.0](https://github.com/themadorg/madmail/compare/v2.36.0-unstable...v2.37.0-unstable) (2026-10-17)
+
+### Features
+
+* **release:** restore full prerelease coverage for ARM64, static legacy Linux, and Windows ([de0a701](https://github.com/themadorg/madmail/commit/de0a70160df3f6129101df9ffec535e2cc8dc283))
+
+### Bug Fixes
+
+* **ci:** build the static server package and expand the testing label ([e09c075](https://github.com/themadorg/madmail/commit/e09c075178f2081960bda8f828a2d4ce6d334106))
+* **ci:** check out the selected commit before the local prepare action ([5583fc4](https://github.com/themadorg/madmail/commit/5583fc4af22e11f988181dc0e47b3a88fcce9706))
+* **ci:** pass Inno silent switches as one raw command line ([1c98063](https://github.com/themadorg/madmail/commit/1c980634a54d8f9413c853c18eb4385a1ffa2f0d))
+* **ci:** suppress the testing installer's refusal dialog ([5cd8f49](https://github.com/themadorg/madmail/commit/5cd8f49d230c2118e77287b77e5271d03cd519c5))
+
 # [2.36.0](https://github.com/themadorg/madmail/compare/v2.35.2...v2.36.0-unstable) (2026-10-16)
 
 ### Features
