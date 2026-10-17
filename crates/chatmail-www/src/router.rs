@@ -131,6 +131,19 @@ pub fn www_router(state: WwwState) -> Router {
             "/engine.io/",
             crate::mail_tunnel::service(state.app.clone()),
         )
+        // Beta, off by default: 404 until `madmail mailtunnel enable`.
+        .layer(axum::middleware::from_fn_with_state(
+            state.pool.clone(),
+            |axum::extract::State(pool): axum::extract::State<DbPool>,
+             req: axum::extract::Request,
+             next: axum::middleware::Next| async move {
+                if crate::gate::is_mail_tunnel_enabled(&pool).await {
+                    next.run(req).await
+                } else {
+                    crate::gate::service_disabled(&crate::cors::CorsSnap::empty())
+                }
+            },
+        ))
         .layer(axum::middleware::map_response(
             |mut resp: axum::response::Response| async move {
                 resp.headers_mut().insert(

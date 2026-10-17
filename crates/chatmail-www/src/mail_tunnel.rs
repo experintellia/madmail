@@ -186,44 +186,35 @@ async fn pump(socket: Arc<Socket<Conn>>, addr: SocketAddr, mut up: mpsc::Receive
 mod tests {
     use super::*;
     use axum::body::{to_bytes, Body};
-    use axum::http::Request;
-    use chatmail_db::init_memory_db;
+    use axum::http::{Request, StatusCode};
+    use chatmail_db::{init_memory_db, set_setting, settings_keys};
+    use futures_util::{SinkExt, StreamExt};
+    use tokio_tungstenite::tungstenite::Message;
     use tower::ServiceExt;
 
-    async fn poll(app: &axum::Router, method: &str, query: &str, body: &str) -> String {
-        let resp = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method(method)
-                    .uri(format!("/engine.io/?EIO=4&transport=polling&{query}"))
-                    .body(Body::from(body.to_string()))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(resp.headers()["access-control-allow-origin"], "*");
-        String::from_utf8(
-            to_bytes(resp.into_body(), usize::MAX)
-                .await
-                .unwrap()
-                .to_vec(),
-        )
-        .unwrap()
-    }
+    /// "a1 NOOP\r\n" and its engine.io v4 long-polling form.
+    const NOOP: &[u8] = b"a1 NOOP\r\n";
+    const NOOP_B64: &str = "bYTEgTk9PUA0K";
 
-    /// Long-polling round trip through the tunnel to a local echo "IMAP" listener.
-    #[tokio::test]
-    async fn polling_tunnel_echoes_through_local_listener() {
+    /// The www router with the tunnel switched `on` (or not) and a local echo
+    /// server registered as the IMAP TLS listener; returns it and the echo port.
+    async fn setup(on: bool) -> (axum::Router, u16) {
         let echo = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = echo.local_addr().unwrap().port();
         tokio::spawn(async move {
-            let (mut s, _) = echo.accept().await.unwrap();
-            let (mut r, mut w) = s.split();
-            tokio::io::copy(&mut r, &mut w).await.unwrap();
+            while let Ok((mut s, _)) = echo.accept().await {
+                tokio::spawn(async move {
+                    let (mut r, mut w) = s.split();
+                    let _ = tokio::io::copy(&mut r, &mut w).await;
+                });
+            }
         });
-
         let pool = init_memory_db().await.unwrap();
+        if on {
+            set_setting(&pool, settings_keys::MAIL_TUNNEL_ENABLED, "true")
+                .await
+                .unwrap();
+        }
         let dir = tempfile::tempdir().unwrap();
         let app_state = Arc::new(AppState::new(dir.path(), pool.clone()));
         app_state.listener_ports.set_runtime(
@@ -239,38 +230,153 @@ mod tests {
             pool,
             app_state,
             chatmail_config::AppConfig::default(),
-            dir.path(),
+            dir.keep(),
         ));
+        (app, port)
+    }
 
-        let open = poll(&app, "GET", &format!("port={port}"), "").await;
-        let sid = open
-            .split("\"sid\":\"")
+    /// Serves `app` on a loopback port, for the WebSocket transport.
+    async fn serve(app: axum::Router) -> std::net::SocketAddr {
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = l.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(l, app).await.unwrap() });
+        addr
+    }
+
+    async fn poll(
+        app: &axum::Router,
+        method: &str,
+        query: &str,
+        body: &str,
+    ) -> (StatusCode, String) {
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri(format!("/engine.io/?EIO=4&transport=polling&{query}"))
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.headers()["access-control-allow-origin"], "*");
+        let status = resp.status();
+        let body = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        (status, String::from_utf8(body.to_vec()).unwrap())
+    }
+
+    /// A long-polling response without the server's pings and noops.
+    fn data(payload: &str) -> String {
+        payload
+            .split('\u{1e}')
+            .filter(|p| *p != "2" && *p != "6")
+            .collect::<Vec<_>>()
+            .join("\u{1e}")
+    }
+
+    fn sid(open: &str) -> &str {
+        open.split("\"sid\":\"")
             .nth(1)
             .unwrap()
             .split('"')
             .next()
-            .unwrap();
-        // "a1 NOOP\r\n" as an engine.io v4 base64 binary packet.
+            .unwrap()
+    }
+
+    /// Next frame that is not an engine.io ping (`2`) or noop (`6`).
+    async fn next_frame<S>(ws: &mut S) -> Message
+    where
+        S: futures_util::Stream<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>
+            + Unpin,
+    {
+        loop {
+            match ws.next().await.unwrap().unwrap() {
+                Message::Text(t) if t.as_str() == "2" || t.as_str() == "6" => {}
+                frame => return frame,
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn long_polling_echoes_through_local_listener() {
+        let (app, port) = setup(true).await;
+        let (_, open) = poll(&app, "GET", &format!("port={port}"), "").await;
+        let sid = sid(&open);
         assert_eq!(
-            poll(&app, "POST", &format!("sid={sid}"), "bYTEgTk9PUA0K").await,
+            poll(&app, "POST", &format!("sid={sid}"), NOOP_B64).await.1,
             "ok"
         );
         assert_eq!(
-            poll(&app, "GET", &format!("sid={sid}"), "").await,
-            "bYTEgTk9PUA0K"
+            data(&poll(&app, "GET", &format!("sid={sid}"), "").await.1),
+            NOOP_B64
+        );
+    }
+
+    #[tokio::test]
+    async fn websocket_echoes_through_local_listener() {
+        let (app, port) = setup(true).await;
+        let addr = serve(app).await;
+        let url = format!("ws://{addr}/engine.io/?EIO=4&transport=websocket&port={port}");
+        let (mut ws, _) = tokio_tungstenite::connect_async(url).await.unwrap();
+        assert!(matches!(next_frame(&mut ws).await, Message::Text(t) if t.starts_with("0{")));
+        ws.send(Message::Binary(NOOP.to_vec().into()))
+            .await
+            .unwrap();
+        assert_eq!(
+            next_frame(&mut ws).await,
+            Message::Binary(NOOP.to_vec().into())
+        );
+    }
+
+    /// The engine.io client default: open by polling, then upgrade the same
+    /// session (and the same TCP stream behind it) to WebSocket.
+    #[tokio::test]
+    async fn polling_session_upgrades_to_websocket() {
+        let (app, port) = setup(true).await;
+        let (_, open) = poll(&app, "GET", &format!("port={port}"), "").await;
+        let sid = sid(&open).to_string();
+        assert_eq!(
+            poll(&app, "POST", &format!("sid={sid}"), NOOP_B64).await.1,
+            "ok"
+        );
+        assert_eq!(
+            data(&poll(&app, "GET", &format!("sid={sid}"), "").await.1),
+            NOOP_B64
         );
 
-        // A port that is not one of our mail listeners: the session is closed at once.
-        let open = poll(&app, "GET", "port=22", "").await;
-        let sid = open
-            .split("\"sid\":\"")
-            .nth(1)
-            .unwrap()
-            .split('"')
-            .next()
+        let addr = serve(app).await;
+        let url = format!("ws://{addr}/engine.io/?EIO=4&transport=websocket&sid={sid}");
+        let (mut ws, _) = tokio_tungstenite::connect_async(url).await.unwrap();
+        ws.send(Message::Text("2probe".into())).await.unwrap();
+        assert_eq!(next_frame(&mut ws).await, Message::Text("3probe".into()));
+        ws.send(Message::Text("5".into())).await.unwrap();
+        ws.send(Message::Binary(NOOP.to_vec().into()))
+            .await
             .unwrap();
-        let gone = poll(&app, "GET", &format!("sid={sid}"), "").await;
+        assert_eq!(
+            next_frame(&mut ws).await,
+            Message::Binary(NOOP.to_vec().into())
+        );
+    }
+
+    #[tokio::test]
+    async fn non_listener_port_gets_no_tunnel() {
+        let (app, _) = setup(true).await;
+        let (_, open) = poll(&app, "GET", "port=22", "").await;
+        let sid = sid(&open);
+        let (_, gone) = poll(&app, "GET", &format!("sid={sid}"), "").await;
         assert!(gone.contains("Session ID unknown"), "{gone}");
+    }
+
+    #[tokio::test]
+    async fn switched_off_by_default() {
+        let (app, port) = setup(false).await;
+        let (status, body) = poll(&app, "GET", &format!("port={port}"), "").await;
+        assert_eq!(
+            (status, body.as_str()),
+            (StatusCode::NOT_FOUND, r#"{"error":"not found"}"#)
+        );
     }
 
     #[test]

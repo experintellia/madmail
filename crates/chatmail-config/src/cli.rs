@@ -301,6 +301,9 @@ pub enum Command {
     /// Enable, disable, or inspect WebSMTP HTTP send API.
     #[command(subcommand)]
     Websmtp(ServiceToggleCommand),
+    /// Enable, disable, or inspect the beta IMAP/SMTP-over-engine.io tunnel (`/engine.io/`).
+    #[command(subcommand)]
+    Mailtunnel(ServiceToggleCommand),
     /// Browser CORS origins for WebIMAP, WebSMTP, and `/new` (`__WEBMAIL_CORS_ORIGINS__`).
     #[command(
         name = "webmail-cors",
@@ -553,7 +556,7 @@ pub enum MonitorCommand {
     Disable,
 }
 
-/// `chatmail webimap` / `websmtp` — `__WEBIMAP_ENABLED__` / `__WEBSMTP_ENABLED__`.
+/// `chatmail webimap` / `websmtp` / `mailtunnel` — `__WEBIMAP_ENABLED__` / `__WEBSMTP_ENABLED__` / `__MAILTUNNEL_ENABLED__`.
 #[derive(Debug, Subcommand, Clone)]
 pub enum ServiceToggleCommand {
     /// Show whether the API is enabled.
