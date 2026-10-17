@@ -19,6 +19,8 @@ tokio-rustls = { workspace = true }
 rustls = { workspace = true }
 hyper = { workspace = true }
 hyper-util = { workspace = true }
+# MapRequest: the peer address as axum ConnectInfo on TLS connections
+tower = { workspace = true, features = ["util"] }
 tracing = { workspace = true }
 uuid = { workspace = true }
 
@@ -27,4 +29,3 @@ chatmail-config = { workspace = true }
 chatmail-db = { workspace = true }
 tempfile = "3"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
-tower = { workspace = true }
