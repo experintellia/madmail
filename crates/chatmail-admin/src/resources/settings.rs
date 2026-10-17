@@ -126,6 +126,10 @@ pub async fn all_settings(st: &AdminState, method: &str) -> AdminResult {
         json!(get_toggle_disabled_default(pool, settings_keys::WEBSMTP_ENABLED).await?),
     );
     body.insert(
+        "mailtunnel_enabled".into(),
+        json!(get_toggle_disabled_default(pool, settings_keys::MAIL_TUNNEL_ENABLED).await?),
+    );
+    body.insert(
         "registration_token_required".into(),
         json!(get_toggle_disabled_default(pool, settings_keys::REGISTRATION_TOKEN_REQUIRED).await?),
     );

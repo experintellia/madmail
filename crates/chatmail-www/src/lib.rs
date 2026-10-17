@@ -23,6 +23,7 @@ pub mod export;
 pub mod gate;
 mod go_template;
 pub mod handlers;
+mod mail_tunnel;
 pub mod response;
 pub mod router;
 pub mod template;

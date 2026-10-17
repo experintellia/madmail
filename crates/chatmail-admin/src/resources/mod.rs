@@ -103,6 +103,15 @@ pub async fn dispatch(st: &AdminState, method: &str, resource: &str, body: &Valu
             )
             .await
         }
+        "/admin/services/mailtunnel" => {
+            toggles::service_bool(
+                st,
+                method,
+                body,
+                chatmail_db::settings_keys::MAIL_TUNNEL_ENABLED,
+            )
+            .await
+        }
         "/admin/services/webmail_dev" => webmail_dev::webmail_dev(st, method, body).await,
         "/admin/services/shadowsocks" => {
             proxy::proxy_service(st, method, body, chatmail_db::settings_keys::SS_ENABLED).await
