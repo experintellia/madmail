@@ -5,6 +5,7 @@
 #   .\packaging\windows\build-setup.ps1 -Arch amd64
 #   .\packaging\windows\build-setup.ps1 -Arch amd64 -Version 2.35.0
 #   .\packaging\windows\build-setup.ps1 -Arch amd64 -Version 2.35.0 -RequireTray
+#   .\packaging\windows\build-setup.ps1 -Arch amd64 -Version 2.35.0 -RequireTray -Testing
 #   .\packaging\windows\build-setup.ps1 -Arch arm64
 #   .\packaging\windows\build-setup.ps1 -Arch all
 #
@@ -17,7 +18,8 @@ param(
     [string]$IsccPath = "",
     [string]$Version = "",
     [switch]$PrintVersion,
-    [switch]$RequireTray
+    [switch]$RequireTray,
+    [switch]$Testing
 )
 
 $ErrorActionPreference = "Stop"
@@ -77,6 +79,23 @@ function Build-One([string]$A, [string]$AppVersion, [bool]$RequireTrayApp) {
     Write-Host "    ISCC: $iscc"
     $defines = @("/DArch=$A", "/DMyAppVersion=$AppVersion")
     if ($RequireTrayApp) { $defines += "/DRequireTray=1" }
+    if ($Testing) {
+        if (-not $RequireTrayApp) { throw "-Testing requires -RequireTray" }
+        $serverPath = Join-Path $Build "madmail-windows-$A.exe"
+        $trayPath = Join-Path $Build $trayName
+        $serverHash = (Get-FileHash -Algorithm SHA256 $serverPath).Hash.ToLowerInvariant()
+        $trayHash = (Get-FileHash -Algorithm SHA256 $trayPath).Hash.ToLowerInvariant()
+        $note = @"
+TESTING ONLY - NOT FOR PRODUCTION USE
+version:$AppVersion
+server-sha256:$serverHash
+tray-sha256:$trayHash
+"@
+        $notePath = Join-Path $Build "UNSTABLE.txt"
+        $utf8 = New-Object System.Text.UTF8Encoding $false
+        [System.IO.File]::WriteAllText($notePath, $note.Trim() + "`n", $utf8)
+        $defines += "/DTestingBuild=1"
+    }
     & $iscc @defines $Iss
     if ($LASTEXITCODE -ne 0) { throw "ISCC failed for Arch=$A (exit $LASTEXITCODE)" }
     $out = Join-Path $Build "madmail-windows-$A-setup.exe"

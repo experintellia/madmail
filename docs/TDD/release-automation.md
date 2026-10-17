@@ -35,20 +35,42 @@ The push is atomic and not forced. A rejected push leaves the remote branch and 
 
 ## Unstable channel
 
-When the version commit is created, the same workflow builds:
+When the version commit is created, CI builds one admin web from the `external/madmail-admin-web` gitlink recorded on that commit, then builds every server from that same commit and `Cargo.lock`. Each server must contain that admin-web generation, its numeric package version, and the pinned iroh-relay v0.35.0 binary for its architecture. The relay archives are the public `n0-computer/iroh` v0.35.0 assets. Their checksums in `scripts/unstable_assets.py` were computed from those files. The relay binaries are not executed, and a Linux relay is not embedded in a Windows or ARM server.
 
-- the existing Linux `cargo build --release --locked --bin madmail` artifact
-- an unsigned Windows amd64 `madmail.exe`
+The prerelease uploads these 16 assets:
 
-It does not build the private static production binary, Windows arm64 release binaries, or the Inno installer. Those stay on their current paths. The Linux CI binary is not the static binary from `scripts/build-release-static.sh`.
+| Asset | Role |
+|-------|------|
+| `madmail-linux-amd64` | glibc server, built on the Ubuntu runner and executed there with `madmail version` |
+| `madmail-linux-amd64.tar.gz` | one `madmail` member, mode `0755` |
+| `madmail-linux-amd64-legacy` | fully static x86_64 glibc server (`cargo rustc -- -C target-feature=+crt-static`) |
+| `madmail-linux-amd64-legacy.tar.gz` | one `madmail` member, mode `0755` |
+| `madmail-linux-amd64-musl` | musl server |
+| `madmail-linux-amd64-musl.tar.gz` | one `madmail` member, mode `0755` |
+| `madmail-linux-arm64` | glibc arm64 server, not executed |
+| `madmail-linux-arm64.tar.gz` | one `madmail` member, mode `0755` |
+| `madmail-linux-arm64-musl` | musl arm64 server, not executed |
+| `madmail-linux-arm64-musl.tar.gz` | one `madmail` member, mode `0755` |
+| `madmail-windows-amd64.exe` | unsigned Windows server, executed with `madmail version` on the Windows runner |
+| `madmail-windows-amd64.zip` | one `madmail.exe` member, mode `0755` |
+| `madmail-tray-windows-amd64.exe` | unsigned tray, smoke-exited on the Windows runner |
+| `madmail-windows-amd64-setup.exe` | unsigned Inno installer labeled testing. Publication does not run it. A pull request runs only the refusal check |
+| `SOURCE.txt` | full source revision of the unstable tag |
+| `SHA256SUMS` | sha256 of every other uploaded file, including archives, tray, installer, and `SOURCE.txt`; it does not list itself |
 
-After that build and the earlier tests succeed, CI creates a GitHub **prerelease** `vX.Y.Z-unstable` whose notes start with:
+`madmail-linux-amd64-legacy` is a fully static x86_64 glibc PIE. CI runs `cargo rustc -p chatmail --release --locked --bin madmail -- -C target-feature=+crt-static` and rejects the file if it has an ELF interpreter, a shared-library `DT_NEEDED` entry, or no GNU ABI note. `scripts/build-release-static.sh` is not in this repository; the job inlines that public recipe instead of calling the script. `zig cc` is not used for this file. The workflow runs `madmail version` on the Ubuntu builder. That is not a Debian 12 boot.
+
+Every server links the SQLite amalgamation inside the locked `libsqlite3-sys` 0.30.1 crate. The workspace `sqlx` 0.8.6 feature `sqlite` enables `sqlx-sqlite/bundled`, which supplies `SQLITE_ENABLE_COLUMN_METADATA` and `SQLITE_ENABLE_UNLOCK_NOTIFY`. The builds do not download a second SQLite or link the runner's system library. The musl jobs still use `cargo-zigbuild` so that bundled C is compiled for the musl target. The arm64 glibc job sets the aarch64 gcc as the C compiler and linker for the same reason. ARMv7 and Windows ARM64 are not part of this prerelease.
+
+The publisher accepts exactly those eight binaries, rejects duplicate bytes, and creates the archives itself. A missing, extra, or mismatched file fails the job. Uploads do not use `--clobber`. A retry reuses matching bytes and fails if an existing asset differs. Publication runs only after the generic build, the tests, the admin-web build, and all six platform jobs succeed. A failed required job skips the prerelease, and the unstable image is still published only after that prerelease succeeds.
+
+A pull request runs that same admin-web build and the same six platform recipes. Every job checks out one commit, `github.event.pull_request.head.sha`, and reads the numeric version, the recorded admin-web gitlink, and `Cargo.lock` from that commit. The build-only path does not accept a release tag or a caller-supplied version. Its last job requires every platform role to have succeeded, then stages the same 16 files with the publication packager and uploads them only as a workflow artifact. That job has read-only contents permission. It does not create a version commit, tag, or GitHub Release, and it does not log in to a registry. Main publication still resolves the unstable tag, checks that the tag points at the release commit, and waits for the whole matrix plus the generic build and tests.
+
+After those jobs succeed, CI creates a GitHub **prerelease** `vX.Y.Z-unstable` whose notes start with:
 
 > TESTING ONLY — NOT FOR PRODUCTION USE.
 >
 > These builds are unsigned, may contain regressions or incompatible changes, and do not have guaranteed upgrade or downgrade compatibility. They are not supported by the signed production updater.
-
-Assets are `madmail-linux-amd64`, `madmail-windows-amd64.exe`, `SOURCE.txt` (the full source revision), and `SHA256SUMS`. Uploads do not use `--clobber`. A retry reuses matching bytes and fails if an existing asset differs.
 
 The container tags for that same commit are:
 
@@ -92,7 +114,13 @@ It also downloads `madmail-tray-windows-amd64.exe` from the same release and sta
 
 When the tray asset has a `sha256` digest, or `SHA256SUMS` lists it, those values must match the downloaded bytes. A checksum shows that the bytes match what the release published. It does not prove which commit built the tray. `SOURCE.txt`, when the release has one, must still be the tag commit; that is the release's claimed source, not a separate attestation inside the tray file. If neither a digest nor a `SHA256SUMS` entry is present, the job logs that and stages the release asset anyway. A missing tray asset fails the job.
 
-The job uploads `madmail-windows-amd64-setup.exe` only. An identical installer is reused. A different published installer fails the job. The portable server executable and the tray executable are not uploaded or replaced. The smoke-test artifact is not reused.
+The job uploads `madmail-windows-amd64-setup.exe` only. An identical installer is reused. A different published installer fails the job. The portable server executable and the tray executable are not uploaded or replaced. The smoke-test artifact is not reused. This stable job does not pass `-Testing` and does not accept the unsigned prerelease binaries.
+
+Unsigned `vX.Y.Z-unstable` releases build their own Windows server and tray, then compile `madmail-windows-amd64-setup.exe` with `-Testing`. Inno Setup 6 emits an x86 setup launcher. Verification checks that launcher (`0x14c`) separately from the amd64 server and tray. The installer is labeled `Madmail TESTING`, carries the numeric `X.Y.Z` version, and is uploaded with the other prerelease assets. It is not checked with the Ed25519 trailer and is not substituted for the stable installer.
+
+The testing installer is not a side-by-side install. It has its own Inno application id and installs under `Program Files\MadmailTesting`, with `UsePreviousAppDir=no`, so Inno will not restore a stable installation directory. The server and tray programs still use the production service name `Madmail`, `ProgramData\Madmail`, and the `MadmailTray` autostart value. Before any file is copied, `InitializeSetup` aborts if the stable uninstall entry or any of those shared resources is present. The supported environment for a real install is a fresh disposable Windows VM. A later run on that same VM is refused as well, because the first run creates those resources. The stable installer does not include this refusal and keeps its original application id, service, directories, and autostart.
+
+The pull-request Windows job compiles that testing installer from the server and tray built in the same job. It then starts that installer on the GitHub-hosted runner with synthetic stable uninstall, autostart, and `ProgramData\Madmail` markers. The command uses `/VERYSILENT`, `/SUPPRESSMSGBOXES`, and a 90 second timeout. The refusal calls `SuppressibleMsgBox`, which returns immediately under those switches. A plain `MsgBox` is not suppressed and would wait. Setup must return before creating `Program Files\MadmailTesting` or changing the sentinel files. That check does not complete an installation, start the service, or touch a maintainer machine. Publication does not run the installer. The stable workflow does not pass `-Testing` and does not run this check.
 
 Owner-maintained tooling kept outside this repository has to attach both `madmail-windows-amd64.exe` (Ed25519 trailer) and `madmail-tray-windows-amd64.exe` (built for that same release) before this job can succeed. If it publishes `SHA256SUMS`, that file must list the tray as well as the server. This repository does not define a new publishing protocol for that step. Local `build-setup.ps1` runs still treat the tray as optional unless `-RequireTray` is passed, and they do not upload anything to a release.
 
@@ -101,5 +129,7 @@ Owner-maintained tooling kept outside this repository has to attach both `madmai
 - No production Ed25519 keys, tokens, or private publish scripts in the repository or Actions.
 - No new tracked `scripts/publish.sh`.
 - No change to signed `update` / `upgrade`.
-- No rewrite or deletion of existing tags.
+- No rewrite or deletion of existing tags or existing GitHub Releases.
 - No stable image publish merely because `main` moved.
+- No execution of the ARM servers or the iroh relay binaries. Header checks do not prove those programs run. A pull request builds the full unsigned matrix from one commit, compiles the testing installer from the Windows server and tray built for that commit, and runs only the refusal check above. It does not publish.
+- No claim that a legacy binary was booted on Debian 12. The prerelease file is the public `+crt-static` recipe, checked as a static PIE. `scripts/build-release-static.sh` is still not in this repository.

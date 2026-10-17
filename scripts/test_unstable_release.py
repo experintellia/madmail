@@ -18,6 +18,9 @@ unstable = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = unstable
 SPEC.loader.exec_module(unstable)
 
+import unstable_assets
+from test_unstable_assets import GENERATION, RELAYS, VERSION, write_inputs
+
 
 class FakeGh:
     def __init__(self):
@@ -70,11 +73,9 @@ class UnstableReleaseTests(unittest.TestCase):
     def stage(self):
         directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
         binaries = directory / "in"
-        binaries.mkdir()
-        (binaries / "madmail-linux-amd64").write_bytes(b"linux")
-        (binaries / "madmail-windows-amd64.exe").write_bytes(b"windows")
+        write_inputs(binaries)
         dest = directory / "out"
-        return unstable.stage(unstable.collect_binaries(binaries), self.sha, dest)
+        return unstable.stage(binaries, self.sha, VERSION, GENERATION, RELAYS, dest)
 
     def test_notes_start_with_the_testing_warning(self):
         self.assertTrue(self.notes.startswith("TESTING ONLY — NOT FOR PRODUCTION USE.\n"))
@@ -87,10 +88,9 @@ class UnstableReleaseTests(unittest.TestCase):
         self.assertEqual(files["SOURCE.txt"], self.sha.encode() + b"\n")
         lines = files["SHA256SUMS"].decode().splitlines()
         names = [line.split("  ", 1)[1] for line in lines]
-        self.assertEqual(
-            names,
-            ["SOURCE.txt", "madmail-linux-amd64", "madmail-windows-amd64.exe"],
-        )
+        self.assertEqual(len(files), 16)
+        self.assertEqual(names, sorted(unstable_assets.PAYLOAD_NAMES + (unstable_assets.SOURCE_NAME,)))
+        self.assertNotIn(unstable_assets.SUMS_NAME, names)
         for line in lines:
             digest, name = line.split("  ", 1)
             self.assertEqual(digest, hashlib.sha256(files[name]).hexdigest())
@@ -200,6 +200,32 @@ class UnstableReleaseTests(unittest.TestCase):
         self.assertNotIn("--clobber", create)
         self.assertIn(self.sha, create)
 
+    def test_write_refuses_a_pull_request_event(self):
+        for event in ("pull_request", "pull_request_target"):
+            with (
+                mock.patch.dict(os.environ, {"GITHUB_EVENT_NAME": event}),
+                mock.patch.object(unstable, "validate", side_effect=AssertionError("validate")),
+                mock.patch.object(unstable, "CommandGh", side_effect=AssertionError("gh")),
+            ):
+                code = unstable.main(
+                    [
+                        "--write",
+                        "--tag",
+                        self.tag,
+                        "--sha",
+                        self.sha,
+                        "--version",
+                        "1.2.4",
+                        "--generation",
+                        GENERATION,
+                        "--changelog",
+                        "CHANGELOG.md",
+                        "--assets",
+                        "dist",
+                    ]
+                )
+            self.assertEqual(code, 1)
+
     def test_cli_dry_run_checks_the_local_tag(self):
         root = Path(self.enterContext(tempfile.TemporaryDirectory()))
         subprocess.run(["git", "init", "-b", "main"], cwd=root, check=True, capture_output=True)
@@ -212,9 +238,7 @@ class UnstableReleaseTests(unittest.TestCase):
             encoding="utf-8",
         )
         assets = root / "assets"
-        assets.mkdir()
-        (assets / "madmail-linux-amd64").write_bytes(b"linux")
-        (assets / "madmail-windows-amd64.exe").write_bytes(b"windows")
+        write_inputs(assets)
         subprocess.run(["git", "add", "."], cwd=root, check=True)
         subprocess.run(
             ["git", "commit", "-m", "fix: seed"], cwd=root, check=True, capture_output=True
@@ -224,7 +248,10 @@ class UnstableReleaseTests(unittest.TestCase):
         previous = Path.cwd()
         try:
             os.chdir(root)
-            with mock.patch.object(unstable, "CommandGh") as gh_cls:
+            with (
+                mock.patch.object(unstable.unstable_assets, "fetch_relays", return_value=RELAYS),
+                mock.patch.object(unstable, "CommandGh") as gh_cls,
+            ):
                 code = unstable.main(
                     [
                         "--tag",
@@ -233,6 +260,8 @@ class UnstableReleaseTests(unittest.TestCase):
                         sha,
                         "--version",
                         "1.2.4",
+                        "--generation",
+                        GENERATION,
                         "--changelog",
                         "CHANGELOG.md",
                         "--assets",

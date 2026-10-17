@@ -11,6 +11,10 @@ crates/chatmail-iroh/assets/iroh-relay
 !/scripts/test_registry_image.py
 !/scripts/unstable_release.py
 !/scripts/test_unstable_release.py
+!/scripts/unstable_assets.py
+!/scripts/test_unstable_assets.py
+!/scripts/unstable_matrix.py
+!/scripts/test_unstable_matrix.py
 !/scripts/verify_signed_binary.py
 !/scripts/test_verify_signed_binary.py
 !/scripts/windows_release.py
