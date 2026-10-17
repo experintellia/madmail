@@ -65,6 +65,16 @@ where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
 {
     let io = TokioIo::new(tls_stream);
+    // Handlers that limit per client (the www mail tunnel) read the peer
+    // from axum's `ConnectInfo`, as on the plain-HTTP path below.
+    let router = tower::util::MapRequest::new(
+        router,
+        move |mut req: hyper::Request<hyper::body::Incoming>| {
+            req.extensions_mut()
+                .insert(axum::extract::ConnectInfo(peer));
+            req
+        },
+    );
     let hyper_svc = TowerToHyperService::new(router);
     // WebSocket upgrades (WebIMAP /webimap/ws) require the upgrade-aware
     // connection driver; plain serve_connection closes right after 101.
@@ -103,10 +113,13 @@ pub async fn run_http_listener(
     info!(%addr, tls = tls_acceptor.is_some(), "HTTP listener (federation + admin)");
 
     if tls_acceptor.is_none() {
-        return axum::serve(listener, router)
-            .with_graceful_shutdown(cancel.cancelled_owned())
-            .await
-            .map_err(|e| chatmail_types::ChatmailError::protocol(e.to_string()));
+        return axum::serve(
+            listener,
+            router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        )
+        .with_graceful_shutdown(cancel.cancelled_owned())
+        .await
+        .map_err(|e| chatmail_types::ChatmailError::protocol(e.to_string()));
     }
 
     loop {

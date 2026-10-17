@@ -100,6 +100,15 @@ pub async fn dispatch(cli: &Cli) -> Result<()> {
             )
             .await
         }
+        Some(Command::Mailtunnel(cmd)) => {
+            service_toggle::run(
+                &cli.args,
+                settings_keys::MAIL_TUNNEL_ENABLED,
+                "Mail tunnel (IMAP/SMTP over engine.io)",
+                cmd,
+            )
+            .await
+        }
         Some(Command::WebmailCors { cmd }) => {
             webmail_cors::webmail_cors(&cli.args, cmd.as_ref()).await
         }
@@ -214,6 +223,7 @@ fn command_name(cmd: &Command) -> &'static str {
         Command::Creds => "creds",
         Command::Webimap { .. } => "webimap",
         Command::Websmtp { .. } => "websmtp",
+        Command::Mailtunnel { .. } => "mailtunnel",
         Command::WebmailCors { .. } => "webmail-cors",
         Command::Push { .. } => "push",
         Command::Proxy { .. } => "proxy",

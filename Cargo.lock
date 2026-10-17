@@ -1140,6 +1140,7 @@ dependencies = [
  "sqlx",
  "tempfile",
  "tokio",
+ "tokio-tungstenite",
  "tower",
  "tracing",
 ]

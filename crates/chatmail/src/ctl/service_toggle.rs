@@ -35,6 +35,8 @@ pub async fn run(
     let pool = ctx.open_pool().await?;
     let command = if service_label.contains("WebIMAP") {
         "webimap"
+    } else if service_label.contains("tunnel") {
+        "mailtunnel"
     } else {
         "websmtp"
     };

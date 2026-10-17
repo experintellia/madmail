@@ -38,6 +38,13 @@ pub async fn is_websmtp_enabled(pool: &DbPool) -> bool {
         .unwrap_or(false)
 }
 
+/// Beta mail tunnel (`/engine.io/`): disabled unless the DB setting is `"true"`.
+pub async fn is_mail_tunnel_enabled(pool: &DbPool) -> bool {
+    get_bool_setting(pool, settings_keys::MAIL_TUNNEL_ENABLED, false)
+        .await
+        .unwrap_or(false)
+}
+
 /// Madmail returns HTTP 404 with `{"error":"not found"}` when a service is disabled.
 pub fn service_disabled(cors: &CorsSnap) -> Response {
     json_err(StatusCode::NOT_FOUND, "not found", cors)

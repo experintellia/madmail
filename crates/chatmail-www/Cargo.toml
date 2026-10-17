@@ -30,5 +30,6 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"
+tokio-tungstenite = "0.29"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tower = { workspace = true }

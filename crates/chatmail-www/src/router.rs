@@ -124,6 +124,31 @@ impl WwwState {
 
 /// Public Madmail-compatible web UI (index, docs, /new, `/madmail` binary, static assets).
 pub fn www_router(state: WwwState) -> Router {
+    // The tunnel carries no ambient authority (TLS runs end-to-end in the
+    // client), so any origin may long-poll it.
+    let mail_tunnel = crate::mail_tunnel::router(state.app.clone())
+        // Beta, off by default: 404 until `madmail mailtunnel enable`.
+        .layer(axum::middleware::from_fn_with_state(
+            state.pool.clone(),
+            |axum::extract::State(pool): axum::extract::State<DbPool>,
+             req: axum::extract::Request,
+             next: axum::middleware::Next| async move {
+                if crate::gate::is_mail_tunnel_enabled(&pool).await {
+                    next.run(req).await
+                } else {
+                    crate::gate::service_disabled(&crate::cors::CorsSnap::empty())
+                }
+            },
+        ))
+        .layer(axum::middleware::map_response(
+            |mut resp: axum::response::Response| async move {
+                resp.headers_mut().insert(
+                    axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
+                    axum::http::HeaderValue::from_static("*"),
+                );
+                resp
+            },
+        ));
     Router::new()
         .route("/madmail", get(handlers::binary_download))
         .route(
@@ -177,4 +202,5 @@ pub fn www_router(state: WwwState) -> Router {
         .route("/", get(handlers::index))
         .route("/{*path}", get(handlers::catch_all))
         .with_state(state)
+        .merge(mail_tunnel)
 }
