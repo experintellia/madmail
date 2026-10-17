@@ -7,7 +7,6 @@ build = "build.rs"
 
 [dependencies]
 axum = { workspace = true }
-engineioxide = "0.17"
 chatmail-auth = { workspace = true }
 chatmail-storage = { workspace = true }
 mail-parser = { workspace = true }
@@ -31,6 +30,6 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"
-tokio-tungstenite = "0.30"
+tokio-tungstenite = "0.29"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tower = { workspace = true }

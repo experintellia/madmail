@@ -126,11 +126,7 @@ impl WwwState {
 pub fn www_router(state: WwwState) -> Router {
     // The tunnel carries no ambient authority (TLS runs end-to-end in the
     // client), so any origin may long-poll it.
-    let mail_tunnel = Router::new()
-        .route_service(
-            "/engine.io/",
-            crate::mail_tunnel::service(state.app.clone()),
-        )
+    let mail_tunnel = crate::mail_tunnel::router(state.app.clone())
         // Beta, off by default: 404 until `madmail mailtunnel enable`.
         .layer(axum::middleware::from_fn_with_state(
             state.pool.clone(),
