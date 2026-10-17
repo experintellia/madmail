@@ -7,6 +7,7 @@ build = "build.rs"
 
 [dependencies]
 axum = { workspace = true }
+engineioxide = "0.17"
 chatmail-auth = { workspace = true }
 chatmail-storage = { workspace = true }
 mail-parser = { workspace = true }

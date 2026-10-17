@@ -124,6 +124,22 @@ impl WwwState {
 
 /// Public Madmail-compatible web UI (index, docs, /new, `/madmail` binary, static assets).
 pub fn www_router(state: WwwState) -> Router {
+    // The tunnel carries no ambient authority (TLS runs end-to-end in the
+    // client), so any origin may long-poll it.
+    let mail_tunnel = Router::new()
+        .route_service(
+            "/engine.io/",
+            crate::mail_tunnel::service(state.app.clone()),
+        )
+        .layer(axum::middleware::map_response(
+            |mut resp: axum::response::Response| async move {
+                resp.headers_mut().insert(
+                    axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
+                    axum::http::HeaderValue::from_static("*"),
+                );
+                resp
+            },
+        ));
     Router::new()
         .route("/madmail", get(handlers::binary_download))
         .route(
@@ -177,4 +193,5 @@ pub fn www_router(state: WwwState) -> Router {
         .route("/", get(handlers::index))
         .route("/{*path}", get(handlers::catch_all))
         .with_state(state)
+        .merge(mail_tunnel)
 }
